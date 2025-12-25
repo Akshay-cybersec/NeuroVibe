@@ -11,7 +11,8 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
   const [alert, setAlert] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "ws://localhost:8000";
+  const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+
   const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
   const signalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -23,23 +24,34 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
   };
 
   const connectWS = () => {
-    const ws = new WebSocket(`${API_BASE.replace("http", "ws")}/ws/${roomCode}/receiver`);
+    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setSenderOnline(true);
       setAlert(null);
       setStatusText("Stream Active");
+
       if (signalTimeoutRef.current) clearTimeout(signalTimeoutRef.current);
+      if (reconnectInterval.current) {
+        clearInterval(reconnectInterval.current);
+        reconnectInterval.current = null;
+      }
     };
 
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
 
-        if (d.type === "speech" && d.payload?.intensity !== undefined) {
+        if (d.type === "ping") {
           setSenderOnline(true);
-          const val = Math.min(Math.max(d.payload.intensity, 0), 100);
+          setStatusText("Stream Active");
+          return;
+        }
+
+        if (d.type === "speech" && d.intensity !== undefined) {
+          setSenderOnline(true);
+          const val = Math.min(Math.max(d.intensity, 0), 100);
           setIntensity(val);
           handleVibration(val);
 
@@ -55,9 +67,9 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
           else if (val > 0) setStatusText("Low Intensity");
           else setStatusText("Listening...");
         }
-
-      } catch (_) {}
+      } catch (_) { }
     };
+
 
     ws.onclose = () => {
       setSenderOnline(false);
