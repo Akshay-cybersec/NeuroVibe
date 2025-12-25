@@ -1,0 +1,5 @@
+//activate local enviroment
+venv\Scripts\activate
+
+//run backend server
+uvicorn main:app --reload
