@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Radio, ArrowRight, Zap, Copy, Check, ShieldCheck } from "lucide-react";
 import { SenderUI } from "./SenderUI";
 import { ReceiverUI } from "./ReceiverUI";
+import { doc, setDoc, serverTimestamp, getDoc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebaseConfig";
 
 export default function VibeDashboard() {
   const [sessionActive, setSessionActive] = useState(false);
@@ -11,9 +13,38 @@ export default function VibeDashboard() {
   const [roomCode, setRoomCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [roomStatus, setRoomStatus] = useState<null | {
+    active: boolean;
+    receivers: number;
+    sender: boolean;
+  }>(null);
 
-  const handleCreate = () => {
+  useEffect(() => {
+    if (!generatedCode) return;
+
+    const unsub = onSnapshot(doc(db, "rooms", generatedCode), (snap) => {
+      if (snap.exists()) {
+        setRoomStatus(snap.data() as {
+          active: boolean;
+          receivers: number;
+          sender: boolean;
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [generatedCode]);
+
+  const handleCreate = async () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    await setDoc(doc(db, "rooms", code), {
+      active: true,
+      created_at: serverTimestamp(),
+      sender: false,
+      receivers: 0,
+    });
+
     setGeneratedCode(code);
     setCopied(false);
   };
@@ -32,11 +63,21 @@ export default function VibeDashboard() {
     setGeneratedCode("");
   };
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (roomCode.length >= 4) {
-      setSessionActive(true);
+    const snap = await getDoc(doc(db, "rooms", roomCode));
+
+    if (!snap.exists() || !snap.data().active) {
+      alert("Invalid or expired room ❌");
+      return;
     }
+
+    setSessionActive(true);
+  };
+  const selectRole = (selectedRole: "sender" | "receiver") => {
+    setRole(selectedRole);
+    setRoomCode(generatedCode || roomCode);
+    setSessionActive(true);
   };
 
   return (
@@ -80,16 +121,37 @@ export default function VibeDashboard() {
                   className="p-6 bg-white/5 border border-cyan-500/30 rounded-2xl flex items-center justify-between"
                 >
                   <div>
-                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Gateway ID</p>
-                    <p className="text-cyan-400 font-mono text-2xl font-bold tracking-widest">{generatedCode}</p>
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">
+                      Gateway ID
+                    </p>
+                    <p className="text-cyan-400 font-mono text-2xl font-bold tracking-widest">
+                      {generatedCode}
+                    </p>
+
+                    {roomStatus && (
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <span
+                          className={`text-xs font-bold uppercase tracking-widest ${roomStatus.active ? "text-green-400" : "text-red-400"
+                            }`}
+                        >
+                          {roomStatus.active ? "ACTIVE ROOM" : "CLOSED"}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest">
+                          {roomStatus.receivers ?? 0} Connected
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <button 
-                    onClick={copyToClipboard} 
+
+                  <button
+                    onClick={copyToClipboard}
                     className="p-4 bg-white/5 hover:bg-cyan-500 rounded-xl transition-all"
                   >
                     {copied ? <Check size={22} /> : <Copy size={22} />}
                   </button>
                 </motion.div>
+
               )}
 
               <div className="relative flex items-center py-4 opacity-50">
@@ -108,9 +170,9 @@ export default function VibeDashboard() {
                 />
                 <motion.button
                   type="submit"
-                  whileHover={roomCode.length >= 4 ? { scale: 1.02 } : {}}
-                  whileTap={roomCode.length >= 4 ? { scale: 0.98 } : {}}
-                  disabled={roomCode.length < 4}
+                  whileHover={roomCode.length === 6 ? { scale: 1.02 } : {}}
+                  whileTap={roomCode.length === 6 ? { scale: 0.98 } : {}}
+                  disabled={roomCode.length < 6}
                   className="w-full py-5 border border-white/10 rounded-2xl text-cyan-400 font-black text-sm tracking-widest flex items-center justify-center gap-3 hover:bg-white/5 disabled:opacity-20 transition-all uppercase"
                 >
                   Join Link <ArrowRight size={20} />
@@ -119,24 +181,24 @@ export default function VibeDashboard() {
             </div>
           </motion.div>
         ) : !role ? (
-          <motion.div 
+          <motion.div
             key="role-selection"
             initial={{ opacity: 0, scale: 0.9, filter: "blur(20px)" }}
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             className="w-full max-w-5xl grid md:grid-cols-2 gap-12"
           >
-            <RoleCard 
-              icon={<Mic size={72}/>} 
-              title="I am Speaking" 
-              desc="Broadcast vocal frequencies. Real-time haptic translation." 
-              onClick={() => setRole("sender")}
+            <RoleCard
+              icon={<Mic size={72} />}
+              title="I am Speaking"
+              desc="Broadcast vocal frequencies. Real-time haptic translation."
+              onClick={() => selectRole("sender")}
               color="cyan"
             />
-            <RoleCard 
-              icon={<Radio size={72}/>} 
-              title="I am Feeling" 
-              desc="Access the neural link. Receive synchronized vibrations." 
-              onClick={() => setRole("receiver")}
+            <RoleCard
+              icon={<Radio size={72} />}
+              title="I am Feeling"
+              desc="Access the neural link. Receive synchronized vibrations."
+              onClick={() => selectRole("receiver")}
               color="blue"
             />
           </motion.div>
@@ -155,32 +217,30 @@ export default function VibeDashboard() {
 function RoleCard({ icon, title, desc, onClick, color }: any) {
   const isCyan = color === "cyan";
   return (
-    <motion.button 
-      whileHover={{ 
-        y: -16, 
-        boxShadow: isCyan 
-          ? "0 30px 60px -12px rgba(6,182,212,0.5)" 
-          : "0 30px 60px -12px rgba(37,99,235,0.5)" 
+    <motion.button
+      whileHover={{
+        y: -16,
+        boxShadow: isCyan
+          ? "0 30px 60px -12px rgba(6,182,212,0.5)"
+          : "0 30px 60px -12px rgba(37,99,235,0.5)"
       }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className="p-12 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[4rem] text-left transition-all group relative overflow-hidden"
     >
-      <div className={`absolute -top-24 -right-24 w-80 h-80 blur-[120px] -z-10 transition-colors duration-700 ${
-        isCyan ? "bg-cyan-500/20 group-hover:bg-cyan-500/40" : "bg-blue-600/20 group-hover:bg-blue-600/40"
-      }`} />
-      
-      <div className={`mb-12 transition-all duration-500 transform group-hover:scale-110 ${
-        isCyan 
-          ? "text-cyan-400 group-hover:drop-shadow-[0_0_20px_#06b6d4]" 
-          : "text-blue-500 group-hover:drop-shadow-[0_0_20px_#2563eb]"
-      }`}>
+      <div className={`absolute -top-24 -right-24 w-80 h-80 blur-[120px] -z-10 transition-colors duration-700 ${isCyan ? "bg-cyan-500/20 group-hover:bg-cyan-500/40" : "bg-blue-600/20 group-hover:bg-blue-600/40"
+        }`} />
+
+      <div className={`mb-12 transition-all duration-500 transform group-hover:scale-110 ${isCyan
+        ? "text-cyan-400 group-hover:drop-shadow-[0_0_20px_#06b6d4]"
+        : "text-blue-500 group-hover:drop-shadow-[0_0_20px_#2563eb]"
+        }`}>
         {icon}
       </div>
-      
+
       <h3 className="text-4xl font-black text-white mb-6 tracking-tight">{title}</h3>
       <p className="text-slate-400 leading-relaxed text-lg font-medium mb-10">{desc}</p>
-      
+
       <div className="flex items-center gap-4 text-xs font-black uppercase tracking-[0.4em] text-white/40 group-hover:text-white transition-colors">
         Initialize Connection <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
       </div>
