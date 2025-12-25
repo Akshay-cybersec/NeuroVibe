@@ -1,4 +1,6 @@
 "use client";
+
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { motion } from "framer-motion";
 
@@ -39,6 +41,15 @@ const alphabet = [
 ];
 
 export default function HapticFeedback() {
+  const [mounted, setMounted] = useState(false);
+
+  // Prevents hydration mismatch and build-time execution issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
   return (
     <main className="min-h-screen bg-slate-950 text-white overflow-x-hidden">
       <Navbar />
@@ -47,10 +58,10 @@ export default function HapticFeedback() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center gap-y-10 text-center mb-20   "
+          className="flex flex-col items-center gap-y-10 text-center mb-20"
         >
-          <h1 className="text-5xl font-black bg-linear-to-r from-cyan-400
-         to-blue-500 bg-clip-text text-transparent mb-4">
+          {/* Changed bg-linear-to-r to bg-gradient-to-r for Tailwind v3 compatibility */}
+          <h1 className="text-5xl font-black bg-linear-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-4">
             Haptic Language System
           </h1>
           <p className="text-slate-400 text-lg max-w-2xl mx-auto">
