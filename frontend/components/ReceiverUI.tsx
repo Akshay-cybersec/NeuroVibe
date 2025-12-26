@@ -49,6 +49,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
         setDebugText(d.text);
         setDebugMorse(d.code);
         animateBars(d.code);
+        vibrateMorse(d.code);
       }
 
       if (d.type === "disconnect") {
@@ -65,7 +66,6 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     return () => ws.close();
   }, [roomCode]);
 
-  /* 🔹 Step 2: Add Receiver to Firestore once Clerk user loads */
   useEffect(() => {
     if (!isLoaded || !user) return;
 
@@ -83,12 +83,14 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       if (!snap.exists()) return;
       const data = snap.data();
 
+      setSenderOnline(!!data.sender);
+      setStatusText(data.sender ? "Neural Link Active ✔" : "Sender Offline");
+
       const list: Member[] = [];
-      if (data.sender) list.push(data.sender); // include sender always
+      if (data.sender) list.push({ ...data.sender, isSender: true });
       if (Array.isArray(data.receivers)) list.push(...data.receivers);
 
-      // REMOVE DUPLICATE SELF FROM LIST (Receiver should not see their own profile twice)
-      const filtered = list.filter(m => m.id !== user.id);
+      const filtered = list.filter(m => m.id !== user?.id);
 
       setMembers(filtered);
     });
@@ -101,7 +103,18 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       unsub();
     };
   }, [isLoaded, user]);
+  function vibrateMorse(code: string) {
+    const UNIT = 200;
+    const pattern: number[] = [];
 
+    for (const c of code) {
+      if (c === ".") pattern.push(UNIT);
+      else if (c === "-") pattern.push(UNIT * 3);
+      else pattern.push(UNIT);
+    }
+
+    navigator.vibrate?.(pattern);
+  }
   function animateBars(code: string) {
     const UNIT = 200;
     const pulse = code.split("").map((c) => c === "." ? 30 : c === "-" ? 60 : 4);
