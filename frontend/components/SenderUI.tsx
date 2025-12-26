@@ -106,15 +106,22 @@ export function SenderUI({
     const rec = new SpeechRecognition();
     recognitionRef.current = rec;
     rec.continuous = true;
-    rec.interimResults = false;
+    rec.interimResults = true;
     rec.lang = "en-US";
 
     rec.onresult = (e: any) => {
-      const text = e.results[e.results.length - 1][0].transcript.trim();
-      if (!text) return;
-      const morse = textToMorse(text);
-      wsRef.current?.send(JSON.stringify({ type: "morse", text, code: morse }));
-    };
+  const result = e.results[e.results.length - 1];
+  const text = result[0].transcript.trim();
+
+  if (!text || !result.isFinal) return;
+
+  const morse = textToMorse(text);
+  wsRef.current?.send(JSON.stringify({
+    type: "morse",
+    text,
+    code: morse
+  }));
+};
 
     rec.start();
   };
