@@ -43,10 +43,29 @@ const alphabet = [
 export default function HapticFeedback() {
   const [mounted, setMounted] = useState(false);
 
-  // Prevents hydration mismatch and build-time execution issues
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Function to translate the Dot/Dash string into millisecond vibrations
+  const triggerVibration = (pattern: string) => {
+    if (typeof window !== "undefined" && navigator.vibrate) {
+      const vibrationPattern: number[] = [];
+      const parts = pattern.split(" ");
+      
+      parts.forEach((char, index) => {
+        if (char === "·") vibrationPattern.push(200); // Dot
+        if (char === "-") vibrationPattern.push(600); // Dash
+        
+        // Add a 200ms pause between pulses, but not after the last one
+        if (index < parts.length - 1) {
+          vibrationPattern.push(200);
+        }
+      });
+      
+      navigator.vibrate(vibrationPattern);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -54,17 +73,17 @@ export default function HapticFeedback() {
     <main className="min-h-screen bg-slate-950 text-white overflow-x-hidden">
       <Navbar />
       
-      <div className="max-w-6xl mx-auto pt-32 pb-20 px-6">
+      {/* pt-52 provides enough space so the content doesn't overlap with the fixed Banner+Navbar */}
+      <div className="max-w-6xl mx-auto pt-52 pb-20 px-6 relative z-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center gap-y-10 text-center mb-20"
+          className="flex flex-col items-center gap-y-6 text-center mb-20"
         >
-          {/* Changed bg-linear-to-r to bg-gradient-to-r for Tailwind v3 compatibility */}
-          <h1 className="text-5xl font-black bg-linear-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-4">
+          <h1 className="text-5xl md:text-6xl font-black bg-linear-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent mb-4 leading-tight">
             Haptic Language System
           </h1>
-          <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">
             Our universal vibration standard allows users to "feel" speech through 
             standardized patterns. Click any card to simulate the haptic pulse.
           </p>
@@ -78,14 +97,18 @@ export default function HapticFeedback() {
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {symbols.map((item, i) => (
-              <div key={i} className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl">
+              <motion.div 
+                key={i} 
+                whileHover={{ y: -5 }}
+                className="p-6 bg-slate-900/40 border border-slate-800 rounded-2xl hover:border-cyan-500/50 transition-colors"
+              >
                 <div className="text-cyan-400 font-mono text-xl mb-2">{item.s}</div>
                 <div className="text-white font-semibold text-sm mb-1">{item.v}</div>
                 <div className="text-slate-500 text-xs mb-3">{item.d}</div>
                 <div className="text-slate-300 text-sm italic border-t border-slate-800 pt-3">
                   "{item.f}"
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </section>
@@ -100,9 +123,10 @@ export default function HapticFeedback() {
             {alphabet.map((item) => (
               <motion.div
                 key={item.l}
-                whileHover={{ scale: 1.03, backgroundColor: "rgba(15, 23, 42, 0.8)" }}
-                whileTap={{ x: [-2, 2, -2, 2, 0], transition: { duration: 0.2 } }}
-                className="p-5 bg-slate-900/40 border border-slate-800 rounded-xl cursor-pointer group"
+                onClick={() => triggerVibration(item.p)}
+                whileHover={{ scale: 1.03, backgroundColor: "rgba(15, 23, 42, 0.8)", borderColor: "rgba(34, 211, 238, 0.5)" }}
+                whileTap={{ scale: 0.95 }}
+                className="p-5 bg-slate-900/40 border border-slate-800 rounded-xl cursor-pointer group transition-all"
               >
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-3xl font-black group-hover:text-cyan-400 transition-colors">
