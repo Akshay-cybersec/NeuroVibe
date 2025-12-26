@@ -1,8 +1,13 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, XCircle, Activity, Share2, Copy, X } from "lucide-react";
+import { Mic, XCircle, Activity, Share2, Copy, QrCode, X, Check } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+
+const SpeechRecognition =
+  typeof window !== "undefined"
+    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    : null;
 
 export function SenderUI({
   roomCode,
@@ -18,173 +23,83 @@ export function SenderUI({
   const [showQRModal, setShowQRModal] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-
-  const SpeechRecognition =
-    (window as any).SpeechRecognition ||
-    (window as any).webkitSpeechRecognition;
-  let recognition: any = null;
-
-  const MORSE: Record<string, string> = {
-    "A": ".-", "B": "-...", "C": "-.-.", "D": "-..",
-    "E": ".", "F": "..-.", "G": "--.", "H": "....",
-    "I": "..", "J": ".---", "K": "-.-", "L": ".-..",
-    "M": "--", "N": "-.", "O": "---", "P": ".--.",
-    "Q": "--.-", "R": ".-.", "S": "...", "T": "-",
-    "U": "..-", "V": "...-", "W": ".--", "X": "-..-",
-    "Y": "-.--", "Z": "--..",
-    "1": ".----", "2": "..---", "3": "...--",
-    "4": "....-", "5": ".....", "6": "-....",
-    "7": "--...", "8": "---..", "9": "----.",
-    "0": "-----",
-  };
-
-  function textToMorse(text: string) {
-    return text
-      .toUpperCase()
-      .split(" ")
-      .map(word =>
-        word
-          .split("")
-          .map(ch => MORSE[ch] || "")
-          .join(" ")
-      )
-      .join(" / ");
-  }
-
-  function sendMorse(text: string) {
-    const morse = textToMorse(text);
-    console.log("Sending Morse:", morse);
-
-    wsRef.current?.send(
-      JSON.stringify({
-        type: "morse",
-        code: morse,
-      })
-    );
-  }
-
-  const cleanupAudio = () => {
-    processorRef.current?.disconnect();
-    processorRef.current = null;
-
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      audioContextRef.current.close().catch(() => { });
-    }
-    audioContextRef.current = null;
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-
-    if (recognition) {
-      recognition.onend = null;
-      recognition.stop();
-      recognition = null;
-    }
-  };
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender`);
     wsRef.current = ws;
 
-    ws.onopen = () => console.log("🔗 Sender WebSocket Connected");
-    ws.onerror = () => console.log("❌ WebSocket Error");
-    ws.onclose = () => console.log("⚠️ Sender WebSocket Closed");
-
     return () => {
       ws.close();
-      cleanupAudio();
+      stopTalking();
     };
-  }, [roomCode, WS_BASE]);
+  }, [roomCode]);
 
+  function textToMorse(text: string) {
+    const map: Record<string, string> = {
+      a: ".-", b: "-...", c: "-.-.", d: "-..", e: ".",
+      f: "..-.", g: "--.", h: "....", i: "..", j: ".---",
+      k: "-.-", l: ".-..", m: "--", n: "-.", o: "---",
+      p: ".--.", q: "--.-", r: ".-.", s: "...", t: "-",
+      u: "..-", v: "...-", w: ".--", x: "-..-", y: "-.--",
+      z: "--..",
+      "0": "-----", "1": ".----", "2": "..---", "3": "...--",
+      "4": "....-", "5": ".....", "6": "-....", "7": "--...",
+      "8": "---..", "9": "----.",
+    };
+    return text
+      .toLowerCase()
+      .split(" ")
+      .map((word) =>
+        word
+          .split("")
+          .map((c) => map[c] || "")
+          .join(" ")
+      )
+      .join(" / ");
+  }
 
-  const startTalking = async () => {
+  const startTalking = () => {
+    if (!SpeechRecognition) return;
+    if (recognitionRef.current) return;
+
     setActive(true);
-    try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      audioContextRef.current = new AudioContext();
-      const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
 
-      processorRef.current = audioContextRef.current.createScriptProcessor(1024, 1, 1);
-      source.connect(processorRef.current);
-      processorRef.current.connect(audioContextRef.current.destination);
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
 
-      processorRef.current.onaudioprocess = (e) => {
-        const data = e.inputBuffer.getChannelData(0);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const intensity = Math.min(Math.sqrt(sum / data.length) * 100, 100);
+    recognition.onresult = (e: any) => {
+      const text = e.results[e.results.length - 1][0].transcript.trim();
+      if (!text) return;
+      const morse = textToMorse(text);
 
-        if (wsRef.current?.readyState === 1) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: "speech",
-              payload: { intensity: Math.round(intensity) }
-            })
-          );
-        }
-      };
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "morse",
+          text,
+          code: morse,
+        })
+      );
+    };
 
-      // 🎤 Speech-to-Text Start
-      if (SpeechRecognition) {
-        if (recognition) {
-          recognition.stop();
-          recognition = null;
-        }
-
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = false;
-        recognition.lang = "en-US";
-
-        recognition.onresult = (event: any) => {
-          const text = event.results[event.results.length - 1][0].transcript;
-          const morse = textToMorse(text);
-          console.log("Text:", text, "Morse:", morse);
-
-          // SEND BOTH to debug
-          wsRef.current?.send(
-            JSON.stringify({
-              type: "morse",
-              text,   // debug
-              code: morse,
-            })
-          );
-        };
-
-        recognition.onend = () => {
-          console.log("Speech recognition ended");
-          // DO NOT auto restart
-        };
-
-        recognition.start();
-      }
-    } catch (err) {
-      console.error("Mic access denied", err);
-      setActive(false);
-    }
+    recognition.start();
   };
 
   const stopTalking = () => {
-  if (!active) return;
-  setActive(false);
+    setActive(false);
 
-  if (recognition) {
-    recognition.onend = null;
-    recognition.stop();
-    recognition = null;
-  }
-
-  cleanupAudio();
-};
-
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  };
 
   return (
     <motion.div
@@ -194,11 +109,13 @@ export function SenderUI({
        bg-slate-900/10 backdrop-blur-3xl rounded-[2.5rem] md:rounded-[3rem] border
         border-white/5 mx-auto shadow-2xl overflow-hidden min-h-150"
     >
-      {/* --- TOP BAR --- */}
       <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 z-20 mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={onExit}
+            onClick={() => {
+              onExit();
+              stopTalking();
+            }}
             className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 rounded-full transition-all duration-300 group shadow-lg"
           >
             <XCircle size={16} className="text-red-500 group-hover:text-white transition-colors" />
@@ -207,7 +124,6 @@ export function SenderUI({
             </span>
           </button>
 
-          {/* NEW SHOW QR BUTTON */}
           <button
             onClick={() => setShowQRModal(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500/10 hover:bg-cyan-500 border border-cyan-500/20 rounded-full transition-all duration-300 group shadow-lg"
@@ -237,7 +153,6 @@ export function SenderUI({
         </div>
       </div>
 
-      {/* --- QR POPUP MODAL --- */}
       <AnimatePresence>
         {showQRModal && (
           <motion.div
@@ -270,11 +185,11 @@ export function SenderUI({
               <div className="flex gap-3 w-full">
                 <button
                   onClick={() => {
-                    navigator.share
-                      ? navigator.share({ url: shareURL })
-                      : navigator.clipboard.writeText(shareURL);
+                    navigator.clipboard.writeText(shareURL);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
                   }}
-                  className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
+                  className="flex items-center justify-center gap-2 flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                 >
                   <Share2 size={16} /> Share Link
                 </button>
@@ -294,7 +209,6 @@ export function SenderUI({
         )}
       </AnimatePresence>
 
-      {/* --- MAIN INTERFACE --- */}
       <div className="flex flex-col items-center justify-center grow w-full">
         <div className="relative h-64 w-64 md:h-80 md:w-80 flex items-center justify-center">
           <AnimatePresence>
@@ -328,78 +242,39 @@ export function SenderUI({
               stopTalking();
             }}
             whileTap={{ scale: 0.96 }}
-            className={`relative z-20 w-44 h-44 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center border-4 transition-all duration-500 select-none touch-none cursor-pointer ${active
-              ? "bg-cyan-500 border-cyan-200 shadow-[0_0_80px_rgba(6,182,212,0.5)]"
-              : "bg-slate-950 border-white/5 text-cyan-400 shadow-[0_0_60px_rgba(0,0,0,0.8)] hover:border-cyan-500/30"
-              }`}
+            className={`relative z-20 w-44 h-44 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center border-4 transition-all duration-500 select-none touch-none cursor-pointer ${
+              active
+                ? "bg-cyan-500 border-cyan-200 shadow-[0_0_80px_rgba(6,182,212,0.5)]"
+                : "bg-slate-950 border-white/5 text-cyan-400 shadow-[0_0_60px_rgba(0,0,0,0.8)] hover:border-cyan-500/30"
+            }`}
           >
-            <Mic
-              size={56}
-              className={`transition-colors duration-500 ${active ? "text-slate-950" : "text-cyan-500"
-                }`}
-            />
+            <Mic size={56} className={active ? "text-slate-950" : "text-cyan-500"} />
             <p
-              className={`mt-4 text-[10px] font-black uppercase tracking-[0.25em] transition-colors duration-500 ${active ? "text-slate-900" : "text-slate-500"
-                }`}
+              className={`mt-4 text-[10px] font-black uppercase tracking-[0.25em] ${
+                active ? "text-slate-900" : "text-slate-500"
+              }`}
             >
               {active ? "Broadcasting" : "Hold to Talk"}
             </p>
           </motion.button>
         </div>
 
-        <div className="flex flex-col items-center gap-2 -mt-4 md:-mt-8 z-30">
-          <div className="flex items-end justify-center gap-1 h-10">
-            <AnimatePresence mode="wait">
-              {active ? (
-                <motion.div
-                  key="active-bars"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-end gap-1"
-                >
-                  {[...Array(15)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      animate={{
-                        height:
-                          active &&
-                          Math.floor(Math.random() * 45) + 10,
-                      }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 0.4,
-                        ease: "easeInOut",
-                        delay: i * 0.03,
-                      }}
-                      className="w-1.5 bg-cyan-400 rounded-full shadow-[0_0_15px_#06b6d4]"
-                    />
-                  ))}
-                </motion.div>
-              ) : (
-                <div className="w-24 h-px bg-cyan-400/20 rounded-full" />
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex flex-col items-center gap-1">
-            <Activity
-              className={`text-cyan-500 transition-all duration-700 ${active
-                ? "animate-spin scale-110 opacity-100"
-                : "animate-pulse opacity-20"
-                }`}
-              size={20}
-            />
-            <span
-              className={`text-[8px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${active ? "opacity-100 text-cyan-400" : "opacity-0"
-                }`}
-            >
-              Signal Active
-            </span>
-          </div>
+        <div className="flex flex-col items-center gap-1 -mt-4 md:-mt-8 z-30">
+          <Activity
+            className={`text-cyan-500 transition-all duration-700 ${
+              active ? "animate-spin scale-110 opacity-100" : "animate-pulse opacity-20"
+            }`}
+            size={20}
+          />
+          <span
+            className={`text-[8px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${
+              active ? "opacity-100 text-cyan-400" : "opacity-0"
+            }`}
+          >
+            Signal Active
+          </span>
         </div>
       </div>
     </motion.div>
   );
 }
-import { Check } from "lucide-react";
