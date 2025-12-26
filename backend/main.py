@@ -48,7 +48,7 @@ async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
 
             try:
                 message = json.loads(data)
-                intensity = message.get("intensity")
+                intensity = message.get("payload", {}).get("intensity")
             except:
                 continue
 

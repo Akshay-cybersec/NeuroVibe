@@ -41,10 +41,27 @@ export function SenderUI({
   }, [roomCode, WS_BASE]);
 
   const cleanupAudio = () => {
-    processorRef.current?.disconnect();
-    audioContextRef.current?.close();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-  };
+  if (processorRef.current) {
+    try {
+      processorRef.current.disconnect();
+    } catch (e) {}
+    processorRef.current = null;
+  }
+
+  if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+    try {
+      audioContextRef.current.close();
+    } catch (e) {
+      console.log("AudioContext already closed");
+    }
+  }
+  audioContextRef.current = null;
+
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }
+};
 
   const startTalking = async () => {
     setActive(true);
