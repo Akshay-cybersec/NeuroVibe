@@ -45,23 +45,18 @@ export function SenderUI({
 
   useEffect(() => {
     if (!user) return;
-
-    const currentUser = {
-      id: user.id,
-      name: user.fullName || user.username || "Unknown",
-      email: user.primaryEmailAddress?.emailAddress,
-      photo: user.imageUrl,
-      joined_at: serverTimestamp()
-    };
-
     const roomRef = doc(db, "rooms", roomCode);
 
     setDoc(roomRef, {
-      sender: currentUser,
+      sender: {
+        id: user.id,
+        name: user.fullName || user.username,
+        photo: user.imageUrl,
+        email: user.primaryEmailAddress?.emailAddress,
+      },
       active: true,
-      created_at: serverTimestamp()
-    }, { merge: true }).then(() => console.log("Room written!"))
-      .catch(err => console.error("Firestore error:", err));;
+      created_at: serverTimestamp(),
+    }, { merge: true });
 
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender/${user.id}`);
     wsRef.current = ws;
