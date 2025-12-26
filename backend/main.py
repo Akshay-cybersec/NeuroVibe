@@ -45,14 +45,18 @@ async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
     try:
         while True:
             data = await ws.receive_text()
+            message = json.loads(data)
 
-            try:
-                message = json.loads(data)
-                intensity = message.get("payload", {}).get("intensity")
-            except:
-                continue
+            if message.get("type") == "morse":
+                code = message.get("code")
+                for client in receivers.get(room_id, []):
+                    await client.send_json({
+                        "type": "morse",
+                        "code": code
+                    })
+                continue 
 
-            # Only sender forwards intensity
+            intensity = message.get("payload", {}).get("intensity")
             if role == "sender" and intensity is not None:
                 for client in receivers.get(room_id, []):
                     try:
@@ -68,21 +72,14 @@ async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
 
         if role == "sender":
             senders.pop(room_id, None)
-
-            # Notify receivers instantly when sender leaves
             for client in receivers.get(room_id, []):
                 try:
-                    await client.send_json({
-                        "type": "disconnect",
-                        "payload": {}
-                    })
+                    await client.send_json({"type": "disconnect"})
                 except:
                     pass
-
         else:
-            if room_id in receivers:
-                if ws in receivers[room_id]:
-                    receivers[room_id].remove(ws)
+            if room_id in receivers and ws in receivers[room_id]:
+                receivers[room_id].remove(ws)
 
 
 @app.get("/rooms")
