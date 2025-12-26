@@ -49,10 +49,12 @@ async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
 
             if message.get("type") == "morse":
                 code = message.get("code")
+                text = message.get("text", "")
                 for client in receivers.get(room_id, []):
                     await client.send_json({
                         "type": "morse",
-                        "code": code
+                        "code": code,
+                        "text": text
                     })
                 continue 
 
