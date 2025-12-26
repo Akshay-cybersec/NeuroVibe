@@ -1,10 +1,11 @@
 import { Navbar } from "../components/Navbar";
 import { Hero } from "../components/Hero";
 import { PrivacyRoom } from "../components/PrivacyRoom";
+import { Footer } from "../components/Footer"; // Import the footer
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30 ">
+    <main className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30">
       <Navbar />
       <Hero />
       <PrivacyRoom />
@@ -27,6 +28,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Add Footer here */}
+      <Footer />
     </main>
   );
 }
