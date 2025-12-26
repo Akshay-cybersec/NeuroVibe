@@ -24,7 +24,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
   };
 
   const connectWS = () => {
-    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender`);
+    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -49,9 +49,9 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
           return;
         }
 
-        if (d.type === "speech" && d.intensity !== undefined) {
+        if (d.type === "speech" && d.payload?.intensity !== undefined) {
           setSenderOnline(true);
-          const val = Math.min(Math.max(d.intensity, 0), 100);
+          const val = Math.min(Math.max(d.payload.intensity, 0), 100);
           setIntensity(val);
           handleVibration(val);
 
