@@ -2,6 +2,9 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, Activity, XCircle, Users } from "lucide-react";
+import { db } from "@/lib/firebaseConfig";
+import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+
 
 interface Receiver {
   id: string;
@@ -11,6 +14,7 @@ interface Receiver {
 }
 
 export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () => void }) {
+  const roomRef = doc(db, "rooms", roomCode);
   const [debugText, setDebugText] = useState("");
   const [debugMorse, setDebugMorse] = useState("");
   const [senderOnline, setSenderOnline] = useState(false);
@@ -21,7 +25,28 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+  useEffect(() => {
+    connectWS();
 
+    const receiverData = {
+      id: receiverId.current,
+      name: `Receiver-${receiverId.current.slice(-3)}`,
+      joined_at: Date.now(),
+    };
+
+    updateDoc(roomRef, {
+      receivers: arrayUnion(receiverData)
+    }).catch(() => { });
+
+    return () => {
+      wsRef.current?.close();
+      reconnectInterval.current && clearInterval(reconnectInterval.current);
+
+      updateDoc(roomRef, {
+        receivers: arrayRemove(receiverData)
+      }).catch(() => { });
+    };
+  }, [roomCode]);
   function animateBarsForMorse(code: string) {
     const UNIT = 200;
     const pattern: number[] = [];
@@ -118,8 +143,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
             <span className="text-cyan-400 font-mono text-lg font-bold tracking-widest">{roomCode}</span>
           </div>
           <div className="flex items-center gap-2 pl-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${
-                senderOnline ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-red-500"
+            <div className={`w-2 h-2 rounded-full animate-pulse ${senderOnline ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-red-500"
               }`} />
             <span className="text-[10px] font-black text-white uppercase tracking-widest">
               {statusText}
@@ -139,7 +163,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       {/* UI remains EXACT same below */}
       {/* Equalizer + Receiver list + Transcript */}
       {/* ... (UNCHANGED UI CONTENT BELOW) ... */}
-      
+
       <div className="grow flex flex-col items-center justify-center w-full z-20">
         <div className="relative h-56 w-56 md:h-72 md:w-72 flex items-center justify-center mb-10">
           {[1, 1.6, 2.3].map((scale, i) => (
