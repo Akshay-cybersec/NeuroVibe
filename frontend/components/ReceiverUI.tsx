@@ -3,133 +3,52 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, Activity, XCircle, Users } from "lucide-react";
 import { db } from "@/lib/firebaseConfig";
-import { doc, updateDoc, arrayUnion, arrayRemove,onSnapshot } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  onSnapshot
+} from "firebase/firestore";
 import { useUser } from "@clerk/nextjs";
 
-
-
-interface Receiver {
+interface Member {
   id: string;
-  name?: string;
-  email?: string;
-  photo?: string;
+  name: string;
+  photo: string | null;
 }
 
 export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () => void }) {
   const roomRef = doc(db, "rooms", roomCode);
-  const [debugText, setDebugText] = useState("");
-  const [debugMorse, setDebugMorse] = useState("");
-  const [senderOnline, setSenderOnline] = useState(false);
-  const [statusText, setStatusText] = useState("Reconnecting…");
-  const [receivers, setReceivers] = useState<Receiver[]>([]);
-  const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
+  const [senderOnline, setSenderOnline] = useState(false);
+  const [statusText, setStatusText] = useState("Connecting…");
+  const [members, setMembers] = useState<Member[]>([]);
+  const [debugText, setDebugText] = useState("");
+  const [debugMorse, setDebugMorse] = useState("");
+  const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
+
+  /* 🔹 Step 1: WebSocket Live Listener */
   useEffect(() => {
-  if (!roomCode || !user) return;
-
-  const roomRef = doc(db, "rooms", roomCode);
-
-  const receiverData = {
-    id: user.id,
-    name: user.fullName || user.username || "Receiver",
-    email: user.primaryEmailAddress?.emailAddress,
-    photo: user.imageUrl,
-  };
-
-  updateDoc(roomRef, {
-    receivers: arrayUnion(receiverData),
-  }).catch(console.error);
-
-  const unsub = onSnapshot(roomRef, (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-
-    const combined = [];
-
-    if (data.sender) combined.push({ ...data.sender, isSender: true });
-    if (Array.isArray(data.receivers)) combined.push(...data.receivers);
-
-    setReceivers(combined);
-  });
-
-  connectWS();
-
-  return () => {
-    updateDoc(roomRef, {
-      receivers: arrayRemove(receiverData),
-    }).catch(console.error);
-
-    wsRef.current?.close();
-    reconnectInterval.current && clearInterval(reconnectInterval.current);
-
-    unsub();
-  };
-
-}, [roomCode, user]);
-
-
-
-  function animateBarsForMorse(code: string) {
-    const UNIT = 200;
-    const pattern: number[] = [];
-
-    for (const c of code) {
-      if (c === ".") pattern.push(20);
-      if (c === "-") pattern.push(50);
-      if (c === " ") pattern.push(0);
-      if (c === "/") pattern.push(0);
-    }
-
-    let idx = 0;
-    const run = () => {
-      if (idx >= pattern.length) return;
-      const height = pattern[idx++];
-      setBarHeights(Array(10).fill(height > 0 ? height : 4));
-      setTimeout(run, UNIT);
-    };
-    run();
-  }
-
-  function vibrateMorse(code: string) {
-    const UNIT = 200;
-    const pattern: number[] = [];
-    for (const c of code) {
-      if (c === ".") pattern.push(UNIT, UNIT);
-      else if (c === "-") pattern.push(UNIT * 3, UNIT);
-      else if (c === " ") pattern.push(UNIT * 3);
-      else if (c === "/") pattern.push(UNIT * 7);
-    }
-    navigator.vibrate?.(pattern);
-  }
-
-  const connectWS = () => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setSenderOnline(true);
       setStatusText("Neural Link Active ✔");
-      if (reconnectInterval.current) clearInterval(reconnectInterval.current);
     };
 
     ws.onmessage = (e) => {
       const d = JSON.parse(e.data);
 
       if (d.type === "morse") {
-        setDebugText(d.text || "");
-        setDebugMorse(d.code || "");
-        setStatusText("Neural Link Active ✔");
-        animateBarsForMorse(d.code);
-        vibrateMorse(d.code);
-      }
-
-      if (d.type === "receiver_list") {
-        setReceivers(d.users || []);
+        setDebugText(d.text);
+        setDebugMorse(d.code);
+        animateBars(d.code);
       }
 
       if (d.type === "disconnect") {
@@ -141,19 +60,61 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     ws.onclose = () => {
       setSenderOnline(false);
       setStatusText("Reconnecting…");
-      if (!reconnectInterval.current) {
-        reconnectInterval.current = setInterval(connectWS, 3000);
-      }
     };
-  };
 
-  useEffect(() => {
-    connectWS();
-    return () => {
-      wsRef.current?.close();
-      reconnectInterval.current && clearInterval(reconnectInterval.current);
-    };
+    return () => ws.close();
   }, [roomCode]);
+
+  /* 🔹 Step 2: Add Receiver to Firestore once Clerk user loads */
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+
+    const receiverData: Member = {
+      id: user.id,
+      name: user.fullName || user.username || "Receiver",
+      photo: user.imageUrl || null
+    };
+
+    updateDoc(roomRef, {
+      receivers: arrayUnion(receiverData)
+    }).catch(console.error);
+
+    const unsub = onSnapshot(roomRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      const list: Member[] = [];
+      if (data.sender) list.push(data.sender); // include sender always
+      if (Array.isArray(data.receivers)) list.push(...data.receivers);
+
+      // REMOVE DUPLICATE SELF FROM LIST (Receiver should not see their own profile twice)
+      const filtered = list.filter(m => m.id !== user.id);
+
+      setMembers(filtered);
+    });
+
+    return () => {
+      updateDoc(roomRef, {
+        receivers: arrayRemove(receiverData)
+      }).catch(console.error);
+
+      unsub();
+    };
+  }, [isLoaded, user]);
+
+  function animateBars(code: string) {
+    const UNIT = 200;
+    const pulse = code.split("").map((c) => c === "." ? 30 : c === "-" ? 60 : 4);
+    let i = 0;
+
+    const step = () => {
+      if (i >= pulse.length) return;
+      setBarHeights(Array(10).fill(pulse[i]));
+      i++;
+      setTimeout(step, UNIT);
+    };
+    step();
+  }
 
   return (
     <motion.div
@@ -169,28 +130,20 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
             <span className="text-cyan-400 font-mono text-lg font-bold tracking-widest">{roomCode}</span>
           </div>
           <div className="flex items-center gap-2 pl-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${senderOnline ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-red-500"
-              }`} />
-            <span className="text-[10px] font-black text-white uppercase tracking-widest">
-              {statusText}
-            </span>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${senderOnline ? "bg-green-500 shadow-[0_0_8px_#22c55e]" : "bg-red-500"}`} />
+            <span className="text-[10px] font-black text-white uppercase tracking-widest">{statusText}</span>
           </div>
         </div>
 
-        <button
-          onClick={onExit}
-          className="flex items-center gap-2 px-6 py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 rounded-full transition-all duration-300 group shadow-lg"
-        >
+        <button onClick={onExit} className="flex items-center gap-2 px-6 py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 rounded-full transition-all duration-300 group shadow-lg">
           <span className="text-[10px] font-black uppercase tracking-widest text-red-500 group-hover:text-white">Exit Session</span>
           <XCircle size={16} className="text-red-500 group-hover:text-white" />
         </button>
       </div>
 
-      {/* UI remains EXACT same below */}
-      {/* Equalizer + Receiver list + Transcript */}
-      {/* ... (UNCHANGED UI CONTENT BELOW) ... */}
-
+      {/* Center UI */}
       <div className="grow flex flex-col items-center justify-center w-full z-20">
+        {/* Visualization */}
         <div className="relative h-56 w-56 md:h-72 md:w-72 flex items-center justify-center mb-10">
           {[1, 1.6, 2.3].map((scale, i) => (
             <motion.div
@@ -203,12 +156,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
 
           <div className="absolute inset-0 flex items-end justify-center gap-1.5 pb-12 px-12">
             {barHeights.map((h, i) => (
-              <motion.div
-                key={i}
-                animate={{ height: h }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="w-2 bg-cyan-500 rounded-full shadow-[0_0_10px_#06b6d4]"
-              />
+              <motion.div key={i} animate={{ height: h }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="w-2 bg-cyan-500 rounded-full shadow-[0_0_10px_#06b6d4]" />
             ))}
           </div>
 
@@ -217,63 +165,29 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
           </div>
         </div>
 
-        {/* Receiver list */}
+        {/* Member List */}
         <div className="w-full max-w-3xl mb-8">
           <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-cyan-500/50" />
             <Users size={14} className="text-cyan-500" />
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">
-              Network Nodes
-            </span>
-            <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-cyan-500/50" />
+            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Network Nodes</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 px-4 overflow-y-auto max-h-48 py-2 scrollbar-hide">
-            <AnimatePresence mode="popLayout">
-              {receivers.map((user) => (
-                <motion.div
-                  key={user.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex flex-col items-center p-3 bg-white/[0.03] border border-white/5 rounded-3xl backdrop-blur-sm"
-                >
-                  <div className="relative mb-2">
-                    {user.photo ? (
-                      <img src={user.photo} className="w-10 h-10 rounded-full" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-cyan-400">
-                        {user.name?.charAt(0) || "U"}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[9px] font-bold text-white text-center">{user.name || "User"}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-48 overflow-y-auto">
+            <AnimatePresence>
+              {members.map((m) => (
+                <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center p-3 bg-white/[0.03] border border-white/5 rounded-3xl">
+                  <img src={m.photo || ""} className="w-10 h-10 rounded-full bg-slate-700 object-cover" />
+                  <span className="text-[9px] font-bold text-white mt-1">{m.name}</span>
                 </motion.div>
               ))}
             </AnimatePresence>
           </div>
         </div>
 
-        {/* Text Feed */}
-        <div className="w-full max-w-2xl bg-black/40 border border-white/5 backdrop-blur-md rounded-2xl p-5 relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500 opacity-50" />
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Activity size={12} className="text-cyan-500 animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-                Live Transcript
-              </span>
-            </div>
-            <p className="text-white text-sm font-medium leading-relaxed">
-              <span className="text-slate-500 mr-2">Text:</span>
-              {debugText || "Listening for incoming neural patterns..."}
-            </p>
-            <p className="text-cyan-400/70 font-mono text-[10px] tracking-widest truncate">
-              <span className="text-slate-500 mr-2 font-sans italic">Morse:</span>
-              {debugMorse || "--- --- ---"}
-            </p>
-          </div>
+        {/* Transcript */}
+        <div className="w-full max-w-2xl bg-black/40 border border-white/5 rounded-2xl p-5">
+          <p className="text-white text-sm"><span className="text-slate-500 mr-2">Text:</span>{debugText || "Waiting…"}</p>
+          <p className="text-cyan-400/70 font-mono text-[10px]"><span className="text-slate-500 mr-2">Morse:</span>{debugMorse || "---"}</p>
         </div>
       </div>
     </motion.div>
