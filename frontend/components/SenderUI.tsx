@@ -61,6 +61,16 @@ export function SenderUI({
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender/${user.id}`);
     wsRef.current = ws;
 
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        user: {
+          id: user?.id,
+          name: user?.fullName || user?.username || "Sender",
+          photo: user?.imageUrl || null
+        }
+      }));
+    };
+
     const unsub = onSnapshot(roomRef, (snap) => {
       if (!snap.exists()) return;
 
@@ -110,18 +120,18 @@ export function SenderUI({
     rec.lang = "en-US";
 
     rec.onresult = (e: any) => {
-  const result = e.results[e.results.length - 1];
-  const text = result[0].transcript.trim();
+      const result = e.results[e.results.length - 1];
+      const text = result[0].transcript.trim();
 
-  if (!text || !result.isFinal) return;
+      if (!text || !result.isFinal) return;
 
-  const morse = textToMorse(text);
-  wsRef.current?.send(JSON.stringify({
-    type: "morse",
-    text,
-    code: morse
-  }));
-};
+      const morse = textToMorse(text);
+      wsRef.current?.send(JSON.stringify({
+        type: "morse",
+        text,
+        code: morse
+      }));
+    };
 
     rec.start();
   };

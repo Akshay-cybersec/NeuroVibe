@@ -32,7 +32,6 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
 
-  /* 🔹 Step 1: WebSocket Live Listener */
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
     wsRef.current = ws;
@@ -40,6 +39,13 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     ws.onopen = () => {
       setSenderOnline(true);
       setStatusText("Neural Link Active ✔");
+      ws.send(JSON.stringify({
+        user: {
+          id: user?.id,
+          name: user?.fullName || user?.username || "Receiver",
+          photo: user?.imageUrl || null
+        }
+      }));
     };
 
     ws.onmessage = (e) => {
@@ -60,7 +66,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
 
     ws.onclose = () => {
       setSenderOnline(false);
-      setStatusText("Reconnecting…");
+      setStatusText("Sender Offline");
     };
 
     return () => ws.close();
