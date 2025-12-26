@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, Activity, XCircle, Users } from "lucide-react";
 import { db } from "@/lib/firebaseConfig";
-import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, updateDoc, arrayUnion, arrayRemove,onSnapshot } from "firebase/firestore";
 import { useUser } from "@clerk/nextjs";
 
 
@@ -28,29 +28,52 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+
   useEffect(() => {
-    connectWS();
+  if (!roomCode || !user) return;
 
-    const receiverData = {
-      id: user?.id || receiverId.current,
-      name: user?.fullName || user?.username || "Receiver",
-      photo: user?.imageUrl || null,
-      joined_at: Date.now()
-    };
+  const roomRef = doc(db, "rooms", roomCode);
 
+  const receiverData = {
+    id: user.id,
+    name: user.fullName || user.username || "Receiver",
+    email: user.primaryEmailAddress?.emailAddress,
+    photo: user.imageUrl,
+  };
+
+  updateDoc(roomRef, {
+    receivers: arrayUnion(receiverData),
+  }).catch(console.error);
+
+  const unsub = onSnapshot(roomRef, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+
+    const combined = [];
+
+    if (data.sender) combined.push({ ...data.sender, isSender: true });
+    if (Array.isArray(data.receivers)) combined.push(...data.receivers);
+
+    setReceivers(combined);
+  });
+
+  connectWS();
+
+  return () => {
     updateDoc(roomRef, {
-      receivers: arrayUnion(receiverData)
-    }).catch(() => { });
+      receivers: arrayRemove(receiverData),
+    }).catch(console.error);
 
-    return () => {
-      wsRef.current?.close();
-      reconnectInterval.current && clearInterval(reconnectInterval.current);
+    wsRef.current?.close();
+    reconnectInterval.current && clearInterval(reconnectInterval.current);
 
-      updateDoc(roomRef, {
-        receivers: arrayRemove(receiverData)
-      }).catch(() => { });
-    };
-  }, [roomCode]);
+    unsub();
+  };
+
+}, [roomCode, user]);
+
+
+
   function animateBarsForMorse(code: string) {
     const UNIT = 200;
     const pattern: number[] = [];
@@ -84,9 +107,8 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     navigator.vibrate?.(pattern);
   }
 
-  const receiverId = useRef(`R-${Math.random().toString(36).substring(2, 8)}`);
   const connectWS = () => {
-    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver/${receiverId.current}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
     wsRef.current = ws;
 
     ws.onopen = () => {
