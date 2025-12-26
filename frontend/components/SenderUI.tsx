@@ -22,12 +22,12 @@ export function SenderUI({
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
+
+  
   useEffect(() => {
-    const ws = new WebSocket(
-      `${API_BASE?.replace("http", "ws")}/ws/${roomCode}/sender`
-    );
+    const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("🔗 Sender WebSocket Connected");
@@ -38,7 +38,7 @@ export function SenderUI({
       ws.close();
       cleanupAudio();
     };
-  }, [roomCode, API_BASE]);
+  }, [roomCode, WS_BASE]);
 
   const cleanupAudio = () => {
     processorRef.current?.disconnect();
@@ -77,7 +77,8 @@ export function SenderUI({
         if (wsRef.current?.readyState === 1) {
           wsRef.current.send(
             JSON.stringify({
-              intensity: Math.round(intensity),
+              type: "speech",
+              payload: { intensity: Math.round(intensity) }
             })
           );
         }
@@ -104,26 +105,26 @@ export function SenderUI({
       {/* --- TOP BAR --- */}
       <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 z-20 mb-6">
         <div className="flex items-center gap-3">
-            <button
+          <button
             onClick={onExit}
             className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500 border border-red-500/20 rounded-full transition-all duration-300 group shadow-lg"
-            >
+          >
             <XCircle size={16} className="text-red-500 group-hover:text-white transition-colors" />
             <span className="text-[10px] font-black uppercase tracking-widest text-red-500 group-hover:text-white">
-                Exit
+              Exit
             </span>
-            </button>
+          </button>
 
-            {/* NEW SHOW QR BUTTON */}
-            <button
+          {/* NEW SHOW QR BUTTON */}
+          <button
             onClick={() => setShowQRModal(true)}
             className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500/10 hover:bg-cyan-500 border border-cyan-500/20 rounded-full transition-all duration-300 group shadow-lg"
-            >
+          >
             <Share2 size={16} className="text-cyan-400 group-hover:text-white transition-colors" />
             <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400 group-hover:text-white">
-                Share Link
+              Share Link
             </span>
-            </button>
+          </button>
         </div>
 
         <div className="flex items-center gap-4 px-6 py-3 bg-white/5 border border-white/10 rounded-full shadow-2xl">
@@ -147,19 +148,19 @@ export function SenderUI({
       {/* --- QR POPUP MODAL --- */}
       <AnimatePresence>
         {showQRModal && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               className="bg-slate-900 border border-white/10 p-8 rounded-[2rem] flex flex-col items-center gap-6 max-w-sm w-full relative shadow-2xl"
             >
-              <button 
+              <button
                 onClick={() => setShowQRModal(false)}
                 className="absolute top-4 right-4 text-slate-500 hover:text-white transition-colors"
               >
@@ -167,7 +168,7 @@ export function SenderUI({
               </button>
 
               <h3 className="text-white font-black uppercase tracking-widest text-sm">Join Neural Link</h3>
-              
+
               <div className="bg-white p-4 rounded-2xl shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 <QRCodeCanvas value={shareURL} size={200} />
               </div>
@@ -176,24 +177,24 @@ export function SenderUI({
 
               <div className="flex gap-3 w-full">
                 <button
-                    onClick={() => {
-                        navigator.share
-                        ? navigator.share({ url: shareURL })
-                        : navigator.clipboard.writeText(shareURL);
-                    }}
-                    className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
+                  onClick={() => {
+                    navigator.share
+                      ? navigator.share({ url: shareURL })
+                      : navigator.clipboard.writeText(shareURL);
+                  }}
+                  className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all"
                 >
-                    <Share2 size={16} /> Share Link
+                  <Share2 size={16} /> Share Link
                 </button>
                 <button
-                    onClick={() => {
-                        navigator.clipboard.writeText(shareURL);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                    }}
-                    className="px-6 py-3 bg-white/5 hover:bg-white/10 text-cyan-400 rounded-xl transition-all"
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareURL);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="px-6 py-3 bg-white/5 hover:bg-white/10 text-cyan-400 rounded-xl transition-all"
                 >
-                    {copied ? <Check size={20} /> : <Copy size={18} />}
+                  {copied ? <Check size={20} /> : <Copy size={18} />}
                 </button>
               </div>
             </motion.div>
@@ -235,22 +236,19 @@ export function SenderUI({
               stopTalking();
             }}
             whileTap={{ scale: 0.96 }}
-            className={`relative z-20 w-44 h-44 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center border-4 transition-all duration-500 select-none touch-none cursor-pointer ${
-              active
+            className={`relative z-20 w-44 h-44 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center border-4 transition-all duration-500 select-none touch-none cursor-pointer ${active
                 ? "bg-cyan-500 border-cyan-200 shadow-[0_0_80px_rgba(6,182,212,0.5)]"
                 : "bg-slate-950 border-white/5 text-cyan-400 shadow-[0_0_60px_rgba(0,0,0,0.8)] hover:border-cyan-500/30"
-            }`}
+              }`}
           >
             <Mic
               size={56}
-              className={`transition-colors duration-500 ${
-                active ? "text-slate-950" : "text-cyan-500"
-              }`}
+              className={`transition-colors duration-500 ${active ? "text-slate-950" : "text-cyan-500"
+                }`}
             />
             <p
-              className={`mt-4 text-[10px] font-black uppercase tracking-[0.25em] transition-colors duration-500 ${
-                active ? "text-slate-900" : "text-slate-500"
-              }`}
+              className={`mt-4 text-[10px] font-black uppercase tracking-[0.25em] transition-colors duration-500 ${active ? "text-slate-900" : "text-slate-500"
+                }`}
             >
               {active ? "Broadcasting" : "Hold to Talk"}
             </p>
@@ -294,17 +292,15 @@ export function SenderUI({
 
           <div className="flex flex-col items-center gap-1">
             <Activity
-              className={`text-cyan-500 transition-all duration-700 ${
-                active
+              className={`text-cyan-500 transition-all duration-700 ${active
                   ? "animate-spin scale-110 opacity-100"
                   : "animate-pulse opacity-20"
-              }`}
+                }`}
               size={20}
             />
             <span
-              className={`text-[8px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${
-                active ? "opacity-100 text-cyan-400" : "opacity-0"
-              }`}
+              className={`text-[8px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${active ? "opacity-100 text-cyan-400" : "opacity-0"
+                }`}
             >
               Signal Active
             </span>

@@ -35,36 +35,55 @@ def root():
 @app.websocket("/ws/{room_id}/{role}")
 async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
     await ws.accept()
-    print(f"Connected: {room_id} {role}")
-
-    rooms_ref = db.collection("rooms").document(room_id)
+    print(f"Connected: Room={room_id}, Role={role}")
 
     if role == "sender":
         senders[room_id] = ws
-        rooms_ref.update({"sender": True})
     else:
         receivers.setdefault(room_id, []).append(ws)
-        rooms_ref.update({"receivers": firestore.Increment(1)})
 
     try:
         while True:
-            data = await ws.receive_json()
-            if role == "sender":
+            data = await ws.receive_text()
+
+            try:
+                message = json.loads(data)
+                intensity = message.get("intensity")
+            except:
+                continue
+
+            # Only sender forwards intensity
+            if role == "sender" and intensity is not None:
                 for client in receivers.get(room_id, []):
-                    await client.send_json(data)
+                    try:
+                        await client.send_json({
+                            "type": "speech",
+                            "payload": {"intensity": intensity}
+                        })
+                    except:
+                        receivers[room_id].remove(client)
 
     except WebSocketDisconnect:
-        print(f"Disconnected: {room_id} {role}")
+        print(f"Disconnected: Room={room_id}, Role={role}")
 
         if role == "sender":
             senders.pop(room_id, None)
-            rooms_ref.update({"active": False, "sender": False})
+
+            # Notify receivers instantly when sender leaves
+            for client in receivers.get(room_id, []):
+                try:
+                    await client.send_json({
+                        "type": "disconnect",
+                        "payload": {}
+                    })
+                except:
+                    pass
+
         else:
-            receivers[room_id].remove(ws)
-            rooms_ref.update({"receivers": firestore.Increment(-1)})
-            
-            if len(receivers[room_id]) == 0:
-                rooms_ref.update({"active": False})
+            if room_id in receivers:
+                if ws in receivers[room_id]:
+                    receivers[room_id].remove(ws)
+
 
 @app.get("/rooms")
 def list_rooms():
