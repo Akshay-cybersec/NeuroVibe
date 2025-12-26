@@ -4,6 +4,10 @@ import { motion } from "framer-motion";
 import { Radio, Activity, XCircle } from "lucide-react";
 
 export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () => void }) {
+  //tempo
+  const [debugText, setDebugText] = useState("");
+  const [debugMorse, setDebugMorse] = useState("");
+
 
   const [intensity, setIntensity] = useState(0);
   const [senderOnline, setSenderOnline] = useState(true);
@@ -42,11 +46,18 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
-        if (d.type === "morse" && d.code) {
-          vibrateMorse(d.code);
+        if (d.type === "morse") {
+          if (d.text) setDebugText(d.text);
+          if (d.code) setDebugMorse(d.code);
+
           setStatusText("Morse Signal Received");
+
+          // Temporarily disable vibration (for debugging)
+          // vibrateMorse(d.code);
+
           return;
         }
+
 
         if (d.type === "ping") {
           setSenderOnline(true);
@@ -195,6 +206,10 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
         <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[10px] md:text-xs text-center">
           {statusText} | {intensity}%
         </p>
+      </div>
+      <div className="bg-black/40 border border-white/10 rounded-xl p-4 w-full text-white text-xs mt-4">
+        <p><strong>Text:</strong> {debugText || "No text detected"}</p>
+        <p><strong>Morse:</strong> {debugMorse || "No morse received"}</p>
       </div>
     </motion.div>
   );
