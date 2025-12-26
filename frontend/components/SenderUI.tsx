@@ -73,7 +73,7 @@ export function SenderUI({
     processorRef.current = null;
 
     if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch(() => { });
     }
     audioContextRef.current = null;
 
@@ -134,7 +134,11 @@ export function SenderUI({
 
       // 🎤 Speech-to-Text Start
       if (SpeechRecognition) {
-        if (recognition) recognition.stop();
+        if (recognition) {
+          recognition.stop();
+          recognition = null;
+        }
+
         recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = false;
@@ -142,11 +146,22 @@ export function SenderUI({
 
         recognition.onresult = (event: any) => {
           const text = event.results[event.results.length - 1][0].transcript;
-          sendMorse(text);
+          const morse = textToMorse(text);
+          console.log("Text:", text, "Morse:", morse);
+
+          // SEND BOTH to debug
+          wsRef.current?.send(
+            JSON.stringify({
+              type: "morse",
+              text,   // debug
+              code: morse,
+            })
+          );
         };
 
         recognition.onend = () => {
-          if (active) recognition.start(); 
+          console.log("Speech recognition ended");
+          // DO NOT auto restart
         };
 
         recognition.start();
@@ -158,17 +173,17 @@ export function SenderUI({
   };
 
   const stopTalking = () => {
-    if (!active) return;
-    setActive(false);
+  if (!active) return;
+  setActive(false);
 
-    if (recognition) {
-      recognition.onend = null;
-      recognition.stop();
-      recognition = null;
-    }
+  if (recognition) {
+    recognition.onend = null;
+    recognition.stop();
+    recognition = null;
+  }
 
-    cleanupAudio();
-  };
+  cleanupAudio();
+};
 
 
   return (
