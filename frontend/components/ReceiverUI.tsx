@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Radio, Activity, XCircle, Users } from "lucide-react";
 import { db } from "@/lib/firebaseConfig";
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { useUser } from "@clerk/nextjs";
+
 
 
 interface Receiver {
@@ -21,6 +23,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [statusText, setStatusText] = useState("Reconnecting…");
   const [receivers, setReceivers] = useState<Receiver[]>([]);
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
+  const { user } = useUser();
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
@@ -29,9 +32,10 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     connectWS();
 
     const receiverData = {
-      id: receiverId.current,
-      name: `Receiver-${receiverId.current.slice(-3)}`,
-      joined_at: Date.now(),
+      id: user?.id || receiverId.current,
+      name: user?.fullName || user?.username || "Receiver",
+      photo: user?.imageUrl || null,
+      joined_at: Date.now()
     };
 
     updateDoc(roomRef, {

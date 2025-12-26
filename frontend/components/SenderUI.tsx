@@ -67,9 +67,15 @@ export function SenderUI({
     wsRef.current = ws;
 
     const unsub = onSnapshot(roomRef, (snap) => {
-      if (snap.exists()) {
-        setReceivers(snap.data().receivers || []);
-      }
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const list = [];
+
+      if (data.sender) list.push({ ...data.sender, isSender: true });
+      if (data.receivers) list.push(...data.receivers);
+
+      setReceivers(list);
     });
 
     return () => {
