@@ -4,28 +4,64 @@ import { motion } from "framer-motion";
 import { Radio, Activity, XCircle } from "lucide-react";
 
 export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () => void }) {
-  //tempo
   const [debugText, setDebugText] = useState("");
   const [debugMorse, setDebugMorse] = useState("");
-
-
-  const [intensity, setIntensity] = useState(0);
-  const [senderOnline, setSenderOnline] = useState(true);
-  const [statusText, setStatusText] = useState("Syncing Haptic Stream...");
-  const [alert, setAlert] = useState<string | null>(null);
+  const [senderOnline, setSenderOnline] = useState(false);
+  const [statusText, setStatusText] = useState("Reconnecting…");
 
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
-  const reconnectInterval = useRef<NodeJS.Timeout | null>(null);
-  const signalTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
 
-  const handleVibration = (strength: number) => {
-    if ("vibrate" in navigator) {
-      const duration = Math.min(strength * 10, 250);
-      navigator.vibrate(duration);
+  function animateBarsForMorse(code: string) {
+    const UNIT = 200;
+    const sequence: (() => void)[] = [];
+    let idx = 0;
+
+    for (const c of code) {
+      if (c === ".") {
+        sequence.push(() => pulseBars(20));
+        sequence.push(() => resetBars());
+      } else if (c === "-") {
+        sequence.push(() => pulseBars(50));
+        sequence.push(() => resetBars());
+      } else if (c === " ") {
+        sequence.push(() => resetBars());
+      } else if (c === "/") {
+        sequence.push(() => resetBars());
+      }
     }
-  };
+
+    function runNext() {
+      if (idx < sequence.length) {
+        sequence[idx++]();
+        setTimeout(runNext, UNIT);
+      }
+    }
+    runNext();
+  }
+
+  function pulseBars(strength: number) {
+    setBarHeights(Array(10).fill(strength));
+  }
+
+  function resetBars() {
+    setBarHeights(Array(10).fill(4));
+  }
+
+  function vibrateMorse(code: string) {
+    const UNIT = 200;
+    const pattern: number[] = [];
+    for (const c of code) {
+      if (c === ".") pattern.push(UNIT, UNIT);
+      else if (c === "-") pattern.push(UNIT * 3, UNIT);
+      else if (c === " ") pattern.push(UNIT * 3);
+      else if (c === "/") pattern.push(UNIT * 7);
+    }
+    navigator.vibrate(pattern);
+  }
 
   const connectWS = () => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
@@ -33,103 +69,38 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
 
     ws.onopen = () => {
       setSenderOnline(true);
-      setAlert(null);
-      setStatusText("Stream Active");
-
-      if (signalTimeoutRef.current) clearTimeout(signalTimeoutRef.current);
-      if (reconnectInterval.current) {
-        clearInterval(reconnectInterval.current);
-        reconnectInterval.current = null;
-      }
+      setStatusText("Neural Link Active ✔");
+      if (reconnectInterval.current) clearInterval(reconnectInterval.current);
+      reconnectInterval.current = null;
     };
 
     ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d.type === "morse") {
-          if (d.text) setDebugText(d.text);
-          if (d.code) setDebugMorse(d.code);
-
-          setStatusText("Morse Signal Received");
-
-          // Temporarily disable vibration (for debugging)
-          // vibrateMorse(d.code);
-
-          return;
-        }
-
-
-        if (d.type === "ping") {
-          setSenderOnline(true);
-          setStatusText("Stream Active");
-          return;
-        }
-
-        if (d.type === "speech" && d.payload?.intensity !== undefined) {
-          setSenderOnline(true);
-          const val = Math.min(Math.max(d.payload.intensity, 0), 100);
-          setIntensity(val);
-          handleVibration(val);
-
-          if (signalTimeoutRef.current) clearTimeout(signalTimeoutRef.current);
-          signalTimeoutRef.current = setTimeout(() => {
-            setIntensity(0);
-            setSenderOnline(false);
-            setStatusText("Waiting for Signal...");
-          }, 2000);
-
-          if (val > 70) setStatusText("High Intensity");
-          else if (val > 40) setStatusText("Medium Intensity");
-          else if (val > 0) setStatusText("Low Intensity");
-          else setStatusText("Listening...");
-        }
-      } catch (_) { }
+      const d = JSON.parse(e.data);
+      if (d.type === "morse") {
+        setDebugText(d.text || "");
+        setDebugMorse(d.code || "");
+        setStatusText("Neural Link Active ✔");
+        animateBarsForMorse(d.code);
+        vibrateMorse(d.code);
+      }
     };
-
 
     ws.onclose = () => {
       setSenderOnline(false);
-      setStatusText("Reconnecting...");
+      setStatusText("Reconnecting…");
       if (!reconnectInterval.current) {
-        reconnectInterval.current = setInterval(() => {
-          connectWS();
-        }, 3000);
+        reconnectInterval.current = setInterval(connectWS, 3000);
       }
     };
   };
 
   useEffect(() => {
-    const resizeHandler = () => {
-      document.body.style.overflow = window.innerWidth < 1024 ? "unset" : "hidden";
-    };
-    resizeHandler();
-    window.addEventListener("resize", resizeHandler);
-
     connectWS();
-
     return () => {
-      document.body.style.overflow = "unset";
-      window.removeEventListener("resize", resizeHandler);
       if (wsRef.current) wsRef.current.close();
-      if (signalTimeoutRef.current) clearTimeout(signalTimeoutRef.current);
       if (reconnectInterval.current) clearInterval(reconnectInterval.current);
     };
   }, [roomCode]);
-
-  function vibrateMorse(code: string) {
-    const UNIT = 100;
-    const pattern: number[] = [];
-
-    for (const c of code) {
-      if (c === ".") pattern.push(UNIT, UNIT);
-      else if (c === "-") pattern.push(UNIT * 3, UNIT);
-      else if (c === " ") pattern.push(UNIT * 3);
-      else if (c === "/") pattern.push(UNIT * 7);
-    }
-
-    navigator.vibrate(pattern);
-  }
-
 
   return (
     <motion.div
@@ -137,16 +108,6 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
       animate={{ opacity: 1, scale: 1 }}
       className="relative w-full max-w-5xl md:h-[calc(100vh-120px)] min-h-150 flex flex-col items-center justify-between p-6 md:p-12 bg-slate-900/10 backdrop-blur-3xl rounded-[2.5rem] md:rounded-[3rem] border border-white/5 mx-auto shadow-2xl overflow-hidden"
     >
-      {alert && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600 text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-wider z-50"
-        >
-          {alert}
-        </motion.div>
-      )}
-
       <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 z-20 pt-4 md:pt-0">
         <button
           onClick={onExit}
@@ -166,7 +127,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
           <div className="flex items-center gap-2 pl-2">
             <div className={`w-2 h-2 rounded-full animate-pulse ${senderOnline ? "bg-green-500" : "bg-red-500"}`} />
             <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">
-              {senderOnline ? "Neural Link Active" : "Reconnecting..."}
+              {statusText}
             </span>
           </div>
         </div>
@@ -174,39 +135,32 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
 
       <div className="grow flex items-center justify-center relative w-full overflow-hidden py-12 md:py-0">
         <div className="relative h-48 w-48 md:h-72 md:w-72 flex items-center justify-center">
-          {[1, 1.5, 2].map((scale, i) => (
+          {[1, 1.6, 2.3].map((scale, i) => (
             <motion.div
               key={i}
-              initial={{ scale: 1, opacity: 0.2 }}
-              animate={{ scale: scale + (intensity / 50), opacity: senderOnline ? 0.4 : 0.1 }}
-              transition={{ repeat: Infinity, duration: 2.5, delay: i * 0.6, ease: "easeOut" }}
-              className="absolute inset-0 border-2 border-cyan-500/30 rounded-full pointer-events-none"
+              animate={{ scale: scale, opacity: senderOnline ? 0.35 : 0.1 }}
+              transition={{ repeat: Infinity, duration: 2.2, delay: i * 0.6, ease: "easeOut" }}
+              className="absolute inset-0 border-2 border-cyan-500/30 rounded-full"
             />
           ))}
 
           <div className="absolute inset-0 flex items-end justify-center gap-1 px-10">
-            {[...Array(10)].map((_, i) => (
+            {barHeights.map((h, i) => (
               <motion.div
                 key={i}
-                animate={{ height: intensity > 0 ? Math.random() * intensity + 10 : 4 }}
-                transition={{ duration: 0.25, repeat: Infinity, repeatType: "reverse", delay: i * 0.02 }}
+                animate={{ height: h }}
+                transition={{ duration: 0.15 }}
                 className="w-1.5 bg-cyan-500 rounded-full opacity-80"
               />
             ))}
           </div>
 
           <div className="z-10 bg-slate-950 p-10 md:p-14 rounded-full border border-cyan-900/30 shadow-[0_0_60px_rgba(0,0,0,0.9)] text-cyan-400">
-            <Radio size={64} className="drop-shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
+            <Radio size={64} />
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-3 z-20 pb-4">
-        <Activity className="text-cyan-600 w-6 h-6 md:w-8 md:h-8" />
-        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[10px] md:text-xs text-center">
-          {statusText} | {intensity}%
-        </p>
-      </div>
       <div className="bg-black/40 border border-white/10 rounded-xl p-4 w-full text-white text-xs mt-4">
         <p><strong>Text:</strong> {debugText || "No text detected"}</p>
         <p><strong>Morse:</strong> {debugMorse || "No morse received"}</p>
