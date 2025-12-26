@@ -32,15 +32,46 @@ receivers = {}
 def root():
     return {"status": "NeuroVibe backend running"}
 
-@app.websocket("/ws/{room_id}/{role}")
-async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
+rooms = {}  # Store sender + receivers in memory
+
+def get_room(room_id):
+    if room_id not in rooms:
+        rooms[room_id] = {"sender": None, "receivers": []}
+    return rooms[room_id]
+
+
+async def broadcast_users(room_id):
+    room = get_room(room_id)
+
+    payload = {
+        "type": "users_update",
+        "sender": room["sender"]["info"] if room["sender"] else None,
+        "receivers": [r["info"] for r in room["receivers"]]
+    }
+
+    # To sender
+    if room["sender"]:
+        await room["sender"]["ws"].send_json(payload)
+
+    # To each receiver
+    for r in room["receivers"]:
+        await r["ws"].send_json(payload)
+
+
+@app.websocket("/ws/{room_id}/{role}/{uid}")
+async def websocket_endpoint(ws: WebSocket, room_id: str, role: str, uid: str):
     await ws.accept()
-    print(f"Connected: Room={room_id}, Role={role}")
+    print(f"Connected: {role} -> Room={room_id}, ID={uid}")
+
+    room = get_room(room_id)
 
     if role == "sender":
-        senders[room_id] = ws
+        room["sender"] = {"ws": ws, "info": {"id": uid, "name": f"Sender-{uid}"}}
     else:
-        receivers.setdefault(room_id, []).append(ws)
+        room["receivers"].append({"ws": ws, "info": {"id": uid, "name": f"Receiver-{uid}"}})
+
+    # broadcast user presence
+    await broadcast_users(room_id)
 
     try:
         while True:
@@ -48,41 +79,26 @@ async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
             message = json.loads(data)
 
             if message.get("type") == "morse":
-                code = message.get("code")
                 text = message.get("text", "")
-                for client in receivers.get(room_id, []):
-                    await client.send_json({
+                code = message.get("code", "")
+                room = get_room(room_id)
+                for r in room["receivers"]:
+                    await r["ws"].send_json({
                         "type": "morse",
-                        "code": code,
-                        "text": text
+                        "text": text,
+                        "code": code
                     })
-                continue 
-
-            intensity = message.get("payload", {}).get("intensity")
-            if role == "sender" and intensity is not None:
-                for client in receivers.get(room_id, []):
-                    try:
-                        await client.send_json({
-                            "type": "speech",
-                            "payload": {"intensity": intensity}
-                        })
-                    except:
-                        receivers[room_id].remove(client)
 
     except WebSocketDisconnect:
-        print(f"Disconnected: Room={room_id}, Role={role}")
+        print(f"Disconnected: {role} -> Room={room_id}, ID={uid}")
+        room = get_room(room_id)
 
         if role == "sender":
-            senders.pop(room_id, None)
-            for client in receivers.get(room_id, []):
-                try:
-                    await client.send_json({"type": "disconnect"})
-                except:
-                    pass
+            room["sender"] = None
         else:
-            if room_id in receivers and ws in receivers[room_id]:
-                receivers[room_id].remove(ws)
+            room["receivers"] = [r for r in room["receivers"] if r["info"]["id"] != uid]
 
+        await broadcast_users(room_id)
 
 @app.get("/rooms")
 def list_rooms():
