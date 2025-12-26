@@ -6,9 +6,8 @@ import { SenderUI } from "./SenderUI";
 import { ReceiverUI } from "./ReceiverUI";
 import { doc, setDoc, serverTimestamp, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebaseConfig";
-import { QRCodeCanvas } from "qrcode.react";
 import { useSearchParams } from "next/navigation";
-import toast, { Toaster } from "react-hot-toast"; // 1. Import Toast
+import toast, { Toaster } from "react-hot-toast"; 
 
 export default function VibeDashboard() {
   const [sessionActive, setSessionActive] = useState(false);
@@ -23,7 +22,6 @@ export default function VibeDashboard() {
     sender: boolean;
   }>(null);
 
-  // --- GRID ANIMATION LOGIC ---
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springConfig = { damping: 25, stiffness: 200 };
@@ -77,6 +75,7 @@ export default function VibeDashboard() {
   }, [generatedCode]);
 
   const handleCreate = async () => {
+    console.log("DB:", db);
     setIsLoading(true); 
     const createPromise = new Promise(async (resolve, reject) => { // 2. Optional: Use promise toast
         try {
@@ -85,7 +84,7 @@ export default function VibeDashboard() {
               active: true,
               created_at: serverTimestamp(),
               sender: true,
-              receivers: 0,
+              receivers: [],
             });
             setGeneratedCode(code);
             setRoomCode(code);

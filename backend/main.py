@@ -32,39 +32,67 @@ receivers = {}
 def root():
     return {"status": "NeuroVibe backend running"}
 
-@app.websocket("/ws/{room_id}/{role}")
-async def websocket_endpoint(ws: WebSocket, room_id: str, role: str):
-    await ws.accept()
-    print(f"Connected: {room_id} {role}")
+rooms = {}  
 
-    rooms_ref = db.collection("rooms").document(room_id)
+def get_room(room_id):
+    if room_id not in rooms:
+        rooms[room_id] = {"sender": None, "receivers": []}
+    return rooms[room_id]
+
+
+async def broadcast_users(room_id):
+    room = get_room(room_id)
+
+    payload = {
+        "type": "users_update",
+        "sender": room["sender"]["info"] if room["sender"] else None,
+        "receivers": [r["info"] for r in room["receivers"]],
+    }
+
+    if room["sender"]:
+        await room["sender"]["ws"].send_json(payload)
+
+    for r in room["receivers"]:
+        await r["ws"].send_json(payload)
+
+
+@app.websocket("/ws/{room_id}/{role}")
+@app.websocket("/ws/{room_id}/{role}/{uid}")
+async def websocket_endpoint(ws: WebSocket, room_id: str, role: str, uid: str = None):
+    await ws.accept()
+
+    if not uid:
+        uid = f"U{os.urandom(4).hex()}"
+
+    room = get_room(room_id)
+
+    init_data = await ws.receive_text()
+    user_info = json.loads(init_data).get("user")
 
     if role == "sender":
-        senders[room_id] = ws
-        rooms_ref.update({"sender": True})
+        room["sender"] = {"ws": ws, "info": user_info}
     else:
-        receivers.setdefault(room_id, []).append(ws)
-        rooms_ref.update({"receivers": firestore.Increment(1)})
+        room["receivers"].append({"ws": ws, "info": user_info})
+
+    await broadcast_users(room_id)
 
     try:
         while True:
-            data = await ws.receive_json()
-            if role == "sender":
-                for client in receivers.get(room_id, []):
-                    await client.send_json(data)
+            data = await ws.receive_text()
+            msg = json.loads(data)
+
+            if msg.get("type") == "morse":
+                for r in room["receivers"]:
+                    await r["ws"].send_json(msg)
 
     except WebSocketDisconnect:
-        print(f"Disconnected: {room_id} {role}")
-
         if role == "sender":
-            senders.pop(room_id, None)
-            rooms_ref.update({"active": False, "sender": False})
+            room["sender"] = None
         else:
-            receivers[room_id].remove(ws)
-            rooms_ref.update({"receivers": firestore.Increment(-1)})
-            
-            if len(receivers[room_id]) == 0:
-                rooms_ref.update({"active": False})
+            room["receivers"] = [r for r in room["receivers"] if r["info"]["id"] != uid]
+
+        await broadcast_users(room_id)
+
 
 @app.get("/rooms")
 def list_rooms():
