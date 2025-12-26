@@ -42,6 +42,11 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
+        if (d.type === "morse" && d.code) {
+          vibrateMorse(d.code);
+          setStatusText("Morse Signal Received");
+          return;
+        }
 
         if (d.type === "ping") {
           setSenderOnline(true);
@@ -99,6 +104,21 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string, onExit: () 
       if (reconnectInterval.current) clearInterval(reconnectInterval.current);
     };
   }, [roomCode]);
+
+  function vibrateMorse(code: string) {
+    const UNIT = 100;
+    const pattern: number[] = [];
+
+    for (const c of code) {
+      if (c === ".") pattern.push(UNIT, UNIT);
+      else if (c === "-") pattern.push(UNIT * 3, UNIT);
+      else if (c === " ") pattern.push(UNIT * 3);
+      else if (c === "/") pattern.push(UNIT * 7);
+    }
+
+    navigator.vibrate(pattern);
+  }
+
 
   return (
     <motion.div

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, XCircle, Activity, Share2, Copy, QrCode, X } from "lucide-react";
+import { Mic, XCircle, Activity, Share2, Copy, X } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 export function SenderUI({
@@ -15,7 +15,7 @@ export function SenderUI({
 }) {
   const [active, setActive] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false); // New state for popup
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -24,8 +24,71 @@ export function SenderUI({
 
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition;
+  let recognition: any = null;
 
-  
+  const MORSE: Record<string, string> = {
+    "A": ".-", "B": "-...", "C": "-.-.", "D": "-..",
+    "E": ".", "F": "..-.", "G": "--.", "H": "....",
+    "I": "..", "J": ".---", "K": "-.-", "L": ".-..",
+    "M": "--", "N": "-.", "O": "---", "P": ".--.",
+    "Q": "--.-", "R": ".-.", "S": "...", "T": "-",
+    "U": "..-", "V": "...-", "W": ".--", "X": "-..-",
+    "Y": "-.--", "Z": "--..",
+    "1": ".----", "2": "..---", "3": "...--",
+    "4": "....-", "5": ".....", "6": "-....",
+    "7": "--...", "8": "---..", "9": "----.",
+    "0": "-----",
+  };
+
+  function textToMorse(text: string) {
+    return text
+      .toUpperCase()
+      .split(" ")
+      .map(word =>
+        word
+          .split("")
+          .map(ch => MORSE[ch] || "")
+          .join(" ")
+      )
+      .join(" / ");
+  }
+
+  function sendMorse(text: string) {
+    const morse = textToMorse(text);
+    console.log("Sending Morse:", morse);
+
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "morse",
+        code: morse,
+      })
+    );
+  }
+
+  const cleanupAudio = () => {
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+    }
+    audioContextRef.current = null;
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+
+    if (recognition) {
+      recognition.onend = null;
+      recognition.stop();
+      recognition = null;
+    }
+  };
+
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender`);
     wsRef.current = ws;
@@ -40,45 +103,16 @@ export function SenderUI({
     };
   }, [roomCode, WS_BASE]);
 
-  const cleanupAudio = () => {
-  if (processorRef.current) {
-    try {
-      processorRef.current.disconnect();
-    } catch (e) {}
-    processorRef.current = null;
-  }
-
-  if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-    try {
-      audioContextRef.current.close();
-    } catch (e) {
-      console.log("AudioContext already closed");
-    }
-  }
-  audioContextRef.current = null;
-
-  if (streamRef.current) {
-    streamRef.current.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }
-};
 
   const startTalking = async () => {
     setActive(true);
     try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
-      audioContextRef.current = new AudioContext();
-      const source = audioContextRef.current.createMediaStreamSource(
-        streamRef.current
-      );
+      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      processorRef.current = audioContextRef.current.createScriptProcessor(
-        1024,
-        1,
-        1
-      );
+      audioContextRef.current = new AudioContext();
+      const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
+
+      processorRef.current = audioContextRef.current.createScriptProcessor(1024, 1, 1);
       source.connect(processorRef.current);
       processorRef.current.connect(audioContextRef.current.destination);
 
@@ -86,10 +120,7 @@ export function SenderUI({
         const data = e.inputBuffer.getChannelData(0);
         let sum = 0;
         for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
-        const intensity = Math.min(
-          Math.sqrt(sum / data.length) * 100,
-          100
-        );
+        const intensity = Math.min(Math.sqrt(sum / data.length) * 100, 100);
 
         if (wsRef.current?.readyState === 1) {
           wsRef.current.send(
@@ -100,6 +131,26 @@ export function SenderUI({
           );
         }
       };
+
+      // 🎤 Speech-to-Text Start
+      if (SpeechRecognition) {
+        if (recognition) recognition.stop();
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: any) => {
+          const text = event.results[event.results.length - 1][0].transcript;
+          sendMorse(text);
+        };
+
+        recognition.onend = () => {
+          if (active) recognition.start(); 
+        };
+
+        recognition.start();
+      }
     } catch (err) {
       console.error("Mic access denied", err);
       setActive(false);
@@ -107,9 +158,18 @@ export function SenderUI({
   };
 
   const stopTalking = () => {
+    if (!active) return;
     setActive(false);
+
+    if (recognition) {
+      recognition.onend = null;
+      recognition.stop();
+      recognition = null;
+    }
+
     cleanupAudio();
   };
+
 
   return (
     <motion.div
@@ -254,8 +314,8 @@ export function SenderUI({
             }}
             whileTap={{ scale: 0.96 }}
             className={`relative z-20 w-44 h-44 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center border-4 transition-all duration-500 select-none touch-none cursor-pointer ${active
-                ? "bg-cyan-500 border-cyan-200 shadow-[0_0_80px_rgba(6,182,212,0.5)]"
-                : "bg-slate-950 border-white/5 text-cyan-400 shadow-[0_0_60px_rgba(0,0,0,0.8)] hover:border-cyan-500/30"
+              ? "bg-cyan-500 border-cyan-200 shadow-[0_0_80px_rgba(6,182,212,0.5)]"
+              : "bg-slate-950 border-white/5 text-cyan-400 shadow-[0_0_60px_rgba(0,0,0,0.8)] hover:border-cyan-500/30"
               }`}
           >
             <Mic
@@ -310,8 +370,8 @@ export function SenderUI({
           <div className="flex flex-col items-center gap-1">
             <Activity
               className={`text-cyan-500 transition-all duration-700 ${active
-                  ? "animate-spin scale-110 opacity-100"
-                  : "animate-pulse opacity-20"
+                ? "animate-spin scale-110 opacity-100"
+                : "animate-pulse opacity-20"
                 }`}
               size={20}
             />
