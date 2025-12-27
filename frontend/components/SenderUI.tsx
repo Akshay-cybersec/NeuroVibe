@@ -11,6 +11,10 @@ import {
   serverTimestamp,
   onSnapshot,
 } from "firebase/firestore";
+import Sentiment from "sentiment";
+
+const sentimentAnalyzer = new Sentiment();
+
 
 interface Receiver {
   id: string;
@@ -42,6 +46,31 @@ export function SenderUI({
   const recognitionRef = useRef<any>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
   const { user } = useUser();
+
+  //spacebar added for tap to speak
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !active) {
+        e.preventDefault();
+        startTalking();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && active) {
+        e.preventDefault();
+        stopTalking();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [active]);
 
   useEffect(() => {
     if (!user) return;
@@ -125,11 +154,25 @@ export function SenderUI({
       if (!text || !result.isFinal) return;
 
       const morse = textToMorse(text);
-      wsRef.current?.send(JSON.stringify({
-        type: "morse",
-        text,
-        code: morse
-      }));
+      const analysis = sentimentAnalyzer.analyze(text);
+      console.log("Sentiment Score:", analysis.score);
+
+      let emotion = "neutral";
+
+      if (analysis.score > 1) emotion = "happy";
+      else if (analysis.score < -2) emotion = "angry";
+      else if (analysis.score < 0) emotion = "sad";
+
+      console.log("Detected Emotion:", emotion);
+
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "morse",
+          text,
+          code: morse,
+          emotion,
+        })
+      );
     };
 
     rec.start();

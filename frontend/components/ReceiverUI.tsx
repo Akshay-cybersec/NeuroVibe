@@ -19,6 +19,9 @@ interface Member {
 }
 
 export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () => void }) {
+  const initialHaptics = sessionStorage.getItem("haptics") === "enabled";
+  const [hapticsEnabled, setHapticsEnabled] = useState(initialHaptics);
+
   const roomRef = doc(db, "rooms", roomCode);
   const { user, isLoaded } = useUser();
 
@@ -31,6 +34,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [debugText, setDebugText] = useState("");
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
+
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
@@ -312,6 +316,22 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
           <p className="text-cyan-400/70 font-mono text-[10px]"><span className="text-slate-500 mr-2">Morse:</span>{debugMorse || "---"}</p>
         </div>
       </div>
+      {!hapticsEnabled && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-center p-6"
+          onClick={() => {
+            navigator.vibrate?.(40);
+            setHapticsEnabled(true);
+          }}
+        >
+          <p className="text-white text-lg font-bold mb-2">
+            Tap to enable vibration feedback
+          </p>
+          <p className="text-cyan-400 text-sm opacity-80">
+            Required for real-time haptic communication
+          </p>
+        </div>
+      )}
     </motion.div>
   );
 }

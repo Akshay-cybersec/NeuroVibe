@@ -1,122 +1,119 @@
 # 🧠 NeuroVibe  
-### Feel the Conversation.
+### Feel The Conversation. Touch The Emotion.
 
-NeuroVibe is an AI-powered accessibility application that converts real-time speech into intelligent haptic (vibration) patterns, enabling deaf and hard-of-hearing users to *feel* conversations instead of hearing them.
+NeuroVibe is an AI-powered accessibility platform that converts real-time speech into vibration patterns with emotion-aware haptics — enabling communication through **touch** instead of sound or visuals.
 
-Built for a Google AI Hackathon, NeuroVibe explores how artificial intelligence and haptics can create an alternative communication layer using touch.
+Developed for the Google AI Hackathon, NeuroVibe focuses on delivering **inclusive**, **non-visual**, and **non-audio** communication for Deaf-Blind communities and users in environments where hearing or vision is limited.
 
 ---
 
-## 🚀 Problem Statement
+## 🚨 Problem Statement
 
-Traditional voice communication is inaccessible to deaf and hard-of-hearing individuals. While text-based solutions exist, they often fail in real-time, emotional, or urgent conversations.
+Most accessibility solutions translate sign language to text or speech, but fail to communicate back to users who cannot see or hear. Deaf-Blind individuals and users in low-visibility or high-noise environments are excluded from two-way communication, especially in critical situations.
 
-There is a lack of solutions that:
-- Work in real time  
-- Preserve speech intensity and emotion  
-- Do not rely solely on text  
+There is a need for an innovative, non-visual, non-audio communication system that enables real-time, intuitive message delivery through touch — ensuring true accessibility, independence, and inclusion.
 
 ---
 
 ## 💡 Our Solution
 
-NeuroVibe translates live speech into a tactile language using AI-driven audio analysis and haptic feedback.
+Our solution enables real-time, two-way inclusive communication using touch-based feedback. When a user sends audio input, the system converts it into text using speech-to-text processing. Simultaneously, emotion detection analyzes tone and context to identify emotions such as urgency, calm, or distress. The processed text and detected emotion are then translated into structured vibration patterns using haptic encoding.
 
-Instead of playing audio on the receiver’s device, NeuroVibe converts speech features such as loudness, emphasis, and emotion into vibration patterns that users can feel instantly.
-
----
-
-## 🔁 How It Works
-
-1. **Sender speaks** using push-to-talk mode  
-2. Speech is captured and streamed in real time  
-3. AI analyzes speech features (intensity, pauses, emotion)  
-4. Speech features are encoded into haptic signals  
-5. Receiver’s device vibrates dynamically based on speech patterns  
-
-No phone numbers. No calling charges. Just real-time voice-to-touch communication.
+These vibrations are delivered instantly to the receiver through a wearable or mobile device, allowing them to feel the message and emotional intent in real time, without relying on sight or sound — making communication accessible, intuitive, and effective even in emergency or low-visibility environments.
 
 ---
 
-## 🤖 AI Integration
+## 🔁 How NeuroVibe Works
 
-NeuroVibe uses AI to intelligently interpret speech instead of applying fixed vibration rules.
+1️⃣ Sender speaks using push-to-talk  
+2️⃣ Speech is converted to **text → Morse-like haptic code**  
+3️⃣ AI analyzes **emotion & urgency**  
+4️⃣ Vibrations intensity changes based on emotion  
+5️⃣ Receiver **feels** the communication in real-time
 
-### AI Capabilities:
-- Speech feature extraction (energy, rhythm, emphasis)
-- Emotion-aware vibration mapping
-- Adaptive haptic patterns for better perception
+✔ Zero dependency on hearing  
+✔ No visual interpretation needed  
+✔ Works in noise / darkness / emergencies
 
-### Google AI / Cloud Tools Used:
-- Google ML Kit (on-device audio processing)
-- Google Speech-to-Text (optional for demo & analysis)
-- Google Cloud / Firebase (backend & session management)
+---
+
+## 🤖 AI Features
+
+- **Sentiment-based emotion detection** (happy / sad / angry / neutral)
+- Emotion-to-vibration intensity mapping  
+- Offline/on-device processing capability for faster response  
+
+🧩 Emotion Example:
+| Emotion | Vibration Strength |
+|--------|------------------|
+| Angry | High intensity |
+| Happy | Medium intensity |
+| Sad | Low & slow |
+| Neutral | Standard |
 
 ---
 
 ## 🧩 Tech Stack
 
-### Mobile App
-- React Native (Android)
-- Native Vibration / Haptic APIs
-
-### Backend
-- FastAPI (Python)
-- WebSockets for real-time communication
-
-### AI / ML
-- Google ML Kit
-- Lightweight ML models for speech feature mapping
-
-### Deployment
-- Cloud-hosted backend (public live link for demo)
+| Layer | Tools Used |
+|-------|------------|
+Frontend | Next.js, TypeScript, Web Speech API, Vibration API |
+Backend | FastAPI, WebSocket Real-time Streaming |
+Database | Firebase Firestore |
+Authentication | Clerk |
+AI Models | Sentiment Analysis (ML-based text emotion) |
+Hosting | Vercel (frontend), Render (backend) |
 
 ---
 
-## 🔐 Session & Connectivity
+## 🔐 Privacy & Connectivity
 
-Instead of phone numbers, NeuroVibe uses:
-- Secure session / room codes
-- Optional QR-based pairing
-
-This ensures privacy and fast connection during conversations.
-
----
-
-## 🎥 Demo
-
-A 3-minute demo video is included showing:
-- Session creation
-- Live speech input
-- Real-time haptic feedback on receiver device
-- AI-driven vibration changes based on speech intensity
+- Temporary **room codes** for session joining  
+- WebSockets enable **low-latency communication**
+- Supports secure QR-based connection sharing
+- 🔜 End-to-End Encryption for full privacy
 
 ---
 
-## 🌍 Impact
+## 🎥 Demo Capabilities
 
-NeuroVibe aims to:
-- Improve accessibility for deaf and hard-of-hearing users
-- Enable silent communication in noisy environments
-- Explore haptics as a new language for human interaction
+- Start a live room as sender  
+- Receiver connects via link / QR  
+- Live speech → haptic feedback  
+- Emotion-based vibration change visible & felt  
+
+> *“Communication you can feel — even in silence.”*
 
 ---
 
-## 📌 Future Scope
+## 🌍 Impact & Use Cases
 
-- Wearable haptic bands for improved sensitivity
-- Personalized haptic learning modes
-- Full speech-to-haptic language training
-- Emergency & assistive communication use cases
+- Deaf-Blind accessibility assistance
+- Emergency communication in dark/noisy areas
+- Silent mode communication in hospitals, defense
+- Assistive wearable interaction systems
+
+---
+
+## 📌 Future Enhancements
+
+| Feature | Impact |
+|--------|--------|
+Wearable haptic bands | More natural touch perception |
+Custom emotion profiles | Personalized feedback |
+Secure E2EE mode | Trusted communication |
+Bidirectional AI translation | Touch → speech/text mapping |
 
 ---
 
 ## 👥 Team
 
-Built with ❤️ for accessibility and inclusion.
+Built with ❤️ to empower accessibility and inclusivity through technology.
 
 ---
 
 ## 🏁 Conclusion
 
-NeuroVibe demonstrates how AI and haptics can bridge the gap between sound and touch, creating a new inclusive communication experience where **silence can be felt**.
+NeuroVibe bridges the sensory gap between sound and touch.  
+With AI-driven vibration feedback, communication becomes a **felt experience**, enabling everyone to stay connected beyond the limits of sight or sound.  
+Silence now has meaning you can feel.

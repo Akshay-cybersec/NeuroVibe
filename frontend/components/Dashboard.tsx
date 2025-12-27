@@ -7,14 +7,13 @@ import { ReceiverUI } from "./ReceiverUI";
 import { doc, setDoc, serverTimestamp, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebaseConfig";
 import { useSearchParams } from "next/navigation";
-import toast, { Toaster } from "react-hot-toast"; 
+import toast, { Toaster } from "react-hot-toast";
 
 export default function VibeDashboard() {
   const [sessionActive, setSessionActive] = useState(false);
   const [role, setRole] = useState<"sender" | "receiver" | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
-  const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [roomStatus, setRoomStatus] = useState<null | {
     active: boolean;
@@ -46,14 +45,36 @@ export default function VibeDashboard() {
   }, [mouseX, mouseY]);
 
   const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-  const shareLink = `${BASE_URL}/join/${generatedCode}`;
+  const shareLink = `${BASE_URL}/viberoom?room=${generatedCode}`;
 
   const searchParams = useSearchParams();
   const autoRoom = searchParams.get("room");
   const autoRole = searchParams.get("role");
+  const [showJoinPrompt, setShowJoinPrompt] = useState(false);
+  const confirmJoin = () => {
+  setSessionActive(true);
+  setRole("receiver");
+  sessionStorage.setItem("haptics", "enabled");
+
+  setShowJoinPrompt(false);
+};
+
+
+  const cancelJoin = () => {
+    setShowJoinPrompt(false);
+    window.location.href = "/viberoom";
+  };
+  useEffect(() => {
+    if (autoRoom) {
+      setRoomCode(autoRoom);
+      setSessionActive(true);
+      setShowJoinPrompt(true);
+      setRole("receiver");
+    }
+  }, [autoRoom]);
 
   useEffect(() => {
-    if (autoRoom && autoRole === "receiver") {
+    if (autoRoom) {
       setRoomCode(autoRoom);
       setSessionActive(true);
       setRole("receiver");
@@ -75,35 +96,35 @@ export default function VibeDashboard() {
   }, [generatedCode]);
 
   const handleCreate = async () => {
-    setIsLoading(true); 
-    const createPromise = new Promise(async (resolve, reject) => {
-        try {
-            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            await setDoc(doc(db, "rooms", code), {
-              active: true,
-              created_at: serverTimestamp(),
-              sender: true,
-              receivers: [],
-            });
-            setGeneratedCode(code);
-            setRoomCode(code);
-            setSessionActive(true);
-            setRole(null);
-            resolve(code);
-          } catch (error) {
-            reject(error);
-          } finally {
-            setIsLoading(false);
-          }
+    setIsLoading(true);
+    const createPromise = new Promise(async (resolve, reject) => { 
+      try {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await setDoc(doc(db, "rooms", code), {
+          active: true,
+          created_at: serverTimestamp(),
+          sender: true,
+          receivers: [],
+        });
+        setGeneratedCode(code);
+        setRoomCode(code);
+        setSessionActive(true);
+        setRole(null);
+        resolve(code);
+      } catch (error) {
+        reject(error);
+      } finally {
+        setIsLoading(false);
+      }
     });
 
     toast.promise(createPromise, {
-        loading: 'Generating Secure Gateway...',
-        success: 'Neural Link Established!',
-        error: 'Connection Failed. Try again.',
+      loading: 'Generating Secure Gateway...',
+      success: 'Neural Link Established!',
+      error: 'Connection Failed. Try again.',
     }, {
-        style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #1e293b' },
-        success: { iconTheme: { primary: '#06b6d4', secondary: '#fff' } }
+      style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #1e293b' },
+      success: { iconTheme: { primary: '#06b6d4', secondary: '#fff' } }
     });
   };
 
@@ -120,20 +141,20 @@ export default function VibeDashboard() {
 
     setIsLoading(true);
     try {
-        const snap = await getDoc(doc(db, "rooms", roomCode));
-        if (!snap.exists() || !snap.data().active) {
-          toast.error("Invalid or Expired Gateway Code", { 
-            style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #ef4444' }
-          });
-          return;
-        }
-        toast.success("Joining Neural Room...");
-        setSessionActive(true);
-        setRole(null); 
+      const snap = await getDoc(doc(db, "rooms", roomCode));
+      if (!snap.exists() || !snap.data().active) {
+        toast.error("Invalid or Expired Gateway Code", {
+          style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #ef4444' }
+        });
+        return;
+      }
+      toast.success("Joining Neural Room...");
+      setSessionActive(true);
+      setRole(null);
     } catch (err) {
-        toast.error("Sync Error. Check Connection.");
+      toast.error("Sync Error. Check Connection.");
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -159,7 +180,32 @@ export default function VibeDashboard() {
         <motion.div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d4_1px,transparent_1px),linear-gradient(to_bottom,#06b6d4_1px,transparent_1px)] bg-[size:1.5rem_1.5rem]" style={{ WebkitMaskImage: maskImage, maskImage: maskImage }} />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.05)_0%,transparent_70%)]" />
       </div>
+      {/* change ui here  */}
+      {showJoinPrompt && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-lg">
+            <p className="text-white text-lg font-bold mb-6">
+              Join room <span className="text-cyan-400">{roomCode}</span>?
+            </p>
 
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={confirmJoin}
+                className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold"
+              >
+                Yes, Join
+              </button>
+              <button
+                onClick={cancelJoin}
+                className="px-6 py-3 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-xl font-bold"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* end of ui change */}
       <AnimatePresence mode="wait">
         {isLoading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md">
@@ -181,7 +227,7 @@ export default function VibeDashboard() {
 
             <div className="space-y-6">
               <motion.button whileHover={{ scale: 1.02, backgroundColor: "#0891b2" }} whileTap={{ scale: 0.98 }} onClick={handleCreate} disabled={isLoading} className="w-full py-5 bg-cyan-600 text-white rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl transition-all text-base uppercase tracking-widest disabled:opacity-50">
-                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} fill="currentColor" />} 
+                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} fill="currentColor" />}
                 CREATE SESSION
               </motion.button>
 
