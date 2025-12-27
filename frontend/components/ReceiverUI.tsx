@@ -54,8 +54,28 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       if (d.type === "morse") {
         setDebugText(d.text);
         setDebugMorse(d.code);
-        animateBars(d.code);
-        vibrateMorse(d.code);
+
+        const emotion = d.emotion || "neutral";
+        console.log("Received emotion:", emotion);
+
+        let intensity = 1;
+
+        switch (emotion) {
+          case "happy":
+            intensity = 2;
+            break;
+          case "sad":
+            intensity = 0.5;
+            break;
+          case "angry":
+            intensity = 3;
+            break;
+          default:
+            intensity = 1;
+        }
+
+        animateBars(d.code, intensity);
+        vibrateMorse(d.code, intensity);
       }
 
       if (d.type === "disconnect") {
@@ -109,8 +129,9 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       unsub();
     };
   }, [isLoaded, user]);
-  function vibrateMorse(code: string) {
-    const UNIT = 200;
+
+  function vibrateMorse(code: string, intensity: number = 1) {
+    const UNIT = 200 * intensity;
     const pattern: number[] = [];
 
     for (const c of code) {
@@ -121,9 +142,18 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
 
     navigator.vibrate?.(pattern);
   }
-  function animateBars(code: string) {
+
+
+  function animateBars(code: string, intensity: number = 1) {
     const UNIT = 200;
-    const pulse = code.split("").map((c) => c === "." ? 30 : c === "-" ? 60 : 4);
+    const pulse = code.split("").map((c) =>
+      c === "."
+        ? 30 * intensity
+        : c === "-"
+          ? 60 * intensity
+          : 4
+    );
+
     let i = 0;
 
     const step = () => {
@@ -132,6 +162,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       i++;
       setTimeout(step, UNIT);
     };
+
     step();
   }
 
