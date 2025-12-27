@@ -50,14 +50,28 @@ export default function VibeDashboard() {
   const searchParams = useSearchParams();
   const autoRoom = searchParams.get("room");
   const autoRole = searchParams.get("role");
+  const [showJoinPrompt, setShowJoinPrompt] = useState(false);
+  const confirmJoin = () => {
+  setSessionActive(true);
+  setRole("receiver");
+  sessionStorage.setItem("haptics", "enabled");
 
-useEffect(() => {
-  if (autoRoom) {
-    setRoomCode(autoRoom);
-    setSessionActive(true);
-    setRole("receiver");
-  }
-}, [autoRoom]);
+  setShowJoinPrompt(false);
+};
+
+
+  const cancelJoin = () => {
+    setShowJoinPrompt(false);
+    window.location.href = "/viberoom";
+  };
+  useEffect(() => {
+    if (autoRoom) {
+      setRoomCode(autoRoom);
+      setSessionActive(true);
+      setShowJoinPrompt(true);
+      setRole("receiver");
+    }
+  }, [autoRoom]);
 
   useEffect(() => {
     if (autoRoom) {
@@ -121,7 +135,7 @@ useEffect(() => {
     try {
       const snap = await getDoc(doc(db, "rooms", roomCode));
       if (!snap.exists() || !snap.data().active) {
-        toast.error("Invalid or Expired Gateway Code", { // 3. Use Error Toast
+        toast.error("Invalid or Expired Gateway Code", {
           style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #ef4444' }
         });
         return;
@@ -159,7 +173,32 @@ useEffect(() => {
         <motion.div className="absolute inset-0 bg-[linear-gradient(to_right,#06b6d4_1px,transparent_1px),linear-gradient(to_bottom,#06b6d4_1px,transparent_1px)] bg-[size:1.5rem_1.5rem]" style={{ WebkitMaskImage: maskImage, maskImage: maskImage }} />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.05)_0%,transparent_70%)]" />
       </div>
+      {/* change ui here  */}
+      {showJoinPrompt && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-white/10 p-8 rounded-3xl text-center shadow-lg">
+            <p className="text-white text-lg font-bold mb-6">
+              Join room <span className="text-cyan-400">{roomCode}</span>?
+            </p>
 
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={confirmJoin}
+                className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold"
+              >
+                Yes, Join
+              </button>
+              <button
+                onClick={cancelJoin}
+                className="px-6 py-3 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-xl font-bold"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* end of ui change */}
       <AnimatePresence mode="wait">
         {isLoading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md">

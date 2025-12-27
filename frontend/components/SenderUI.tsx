@@ -47,6 +47,31 @@ export function SenderUI({
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
   const { user } = useUser();
 
+  //spacebar added for tap to speak
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !active) {
+        e.preventDefault();
+        startTalking();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" && active) {
+        e.preventDefault();
+        stopTalking();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [active]);
+
   useEffect(() => {
     if (!user) return;
     const roomRef = doc(db, "rooms", roomCode);
@@ -91,7 +116,6 @@ export function SenderUI({
       unsub();
       ws.close();
       stopTalking();
-      //setDoc(roomRef, { sender: null }, { merge: true }); // only clean sender
     };
   }, [roomCode, user]);
 
