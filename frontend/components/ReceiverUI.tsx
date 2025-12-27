@@ -31,10 +31,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [debugText, setDebugText] = useState("");
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
-  
-  useEffect(() => {
-    navigator.vibrate?.(1);
-  }, []);
+
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
@@ -172,6 +169,8 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
 
   return (
     <motion.div
+      onClick={() => navigator.vibrate?.(10)}
+      onTouchStart={() => navigator.vibrate?.(10)}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className="relative w-full max-w-5xl flex flex-col items-center p-6 md:p-12 bg-slate-900/10 backdrop-blur-3xl rounded-[2.5rem] md:rounded-[3rem] border border-white/5 mx-auto shadow-2xl overflow-hidden min-h-[85vh]"

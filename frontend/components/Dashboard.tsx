@@ -121,7 +121,7 @@ useEffect(() => {
     try {
       const snap = await getDoc(doc(db, "rooms", roomCode));
       if (!snap.exists() || !snap.data().active) {
-        toast.error("Invalid or Expired Gateway Code", { // 3. Use Error Toast
+        toast.error("Invalid or Expired Gateway Code", { 
           style: { borderRadius: '10px', background: '#0f172a', color: '#fff', border: '1px solid #ef4444' }
         });
         return;
