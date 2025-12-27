@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, XCircle, Share2, Copy, X, Check, Users } from "lucide-react";
+import { Mic, XCircle, Share2, Copy, X, Check, Users, Activity } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebaseConfig";
@@ -87,7 +87,6 @@ export function SenderUI({
       unsub();
       ws.close();
       stopTalking();
-      //setDoc(roomRef, { sender: null }, { merge: true }); // only clean sender
     };
   }, [roomCode, user]);
 
@@ -178,7 +177,7 @@ export function SenderUI({
 
       {/* Mic Section */}
       <div className="flex flex-col items-center justify-center grow w-full z-20">
-        <div className="relative h-64 w-64 md:h-72 md:w-72 flex items-center justify-center mb-12">
+        <div className="relative h-64 w-64 md:h-72 md:w-72 flex items-center justify-center mb-6">
           <AnimatePresence>
             {active && [1.2, 1.5, 1.8].map((scale, i) => (
               <motion.div
@@ -207,9 +206,47 @@ export function SenderUI({
           </motion.button>
         </div>
 
+        {/* --- WAVEFORM & PULSE SECTION (GAP REDUCED HERE) --- */}
+        <div className="flex flex-col items-center gap-4 mb-4 min-h-[60px] w-full max-w-xs">
+          <AnimatePresence>
+            {active && (
+              <motion.div 
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                className="flex flex-col items-center w-full"
+              >
+                {/* Waveform Bars */}
+                <div className="flex items-end justify-center gap-1.5 h-10 mb-2">
+                  {[...Array(20)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ 
+                        height: [10, Math.random() * 35 + 10, 10],
+                        opacity: [0.3, 1, 0.3]
+                      }}
+                      transition={{ 
+                        repeat: Infinity, 
+                        duration: 0.5 + Math.random() * 0.5, 
+                        ease: "easeInOut" 
+                      }}
+                      className="w-1 md:w-1.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#06b6d4]"
+                    />
+                  ))}
+                </div>
+                {/* Status Pulse */}
+                <div className="flex items-center gap-2">
+                  <Activity size={12} className="text-cyan-400 animate-pulse" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.4em] text-cyan-400/80">Streaming</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Receiver Presence UI */}
         <div className="w-full max-w-4xl">
-          <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="flex items-center justify-center gap-3 mb-6">
             <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-cyan-500/50" />
             <Users size={14} className="text-cyan-500" />
             <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Connected Nodes</span>
