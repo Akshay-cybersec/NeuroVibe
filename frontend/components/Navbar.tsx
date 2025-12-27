@@ -19,19 +19,37 @@ export const Navbar = () => {
     <header className="fixed top-0 w-full z-50">
       {/* --- NOTIFICATION BANNER --- */}
       {showBanner && (
-        <div className="bg-[#020617] border-b border-cyan-900/50 text-slate-300 px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-3 mx-auto">
-            <AlertCircle size={16} className="text-cyan-400 animate-pulse" />
-            <p className="text-xs md:text-sm font-medium tracking-wide">
-              <span className="text-cyan-400 font-bold">System Note:</span> Our backend is on a free tier; 
-              requests may be delayed. Please allow extra time for data to load.
-            </p>
+        <div className="bg-slate-950 border-b border-cyan-900/50 text-slate-300 px-4 py-3 md:py-2 flex items-center justify-between z-[100] sticky top-0 backdrop-blur-md">
+          <div className="flex items-start md:items-center gap-3 mx-auto max-w-3xl">
+            <AlertCircle size={14} className="text-cyan-400 animate-pulse mt-0.5 md:mt-0 shrink-0" />
+
+            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
+              <p className="text-[10px] md:text-xs font-medium tracking-wide leading-tight">
+                <span className="text-cyan-400 font-bold uppercase mr-1">Cold Start:</span>
+                Backend sleeps due to inactivity. Please
+                <a
+                  href="https://neurovibe.onrender.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 underline font-bold mx-1 hover:text-cyan-300 transition-colors"
+                >
+                  ping here
+                </a>
+                before use.
+              </p>
+
+              <span className="text-[9px] md:text-[10px] font-mono text-slate-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 w-fit">
+                Wait for: <span className="text-green-500/80">"NeuroVibe backend running"</span>
+              </span>
+            </div>
           </div>
-          <button 
+
+          <button
             onClick={() => setShowBanner(false)}
-            className="text-slate-500 hover:text-cyan-400 transition-colors p-1 cursor-pointer"
+            className="text-slate-500 hover:text-red-400 transition-colors p-1 shrink-0 ml-2"
+            aria-label="Close alert"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
       )}
@@ -54,7 +72,7 @@ export const Navbar = () => {
             Home
           </Link>
           <Link href="/hapticfeedback" className="text-slate-300 hover:text-cyan-400 transition-colors cursor-pointer font-semibold">
-             Haptic Alphabet
+            Haptic Alphabet
           </Link>
           <Link href="/training-awareness" className="text-slate-300 hover:text-cyan-400 transition-colors cursor-pointer font-semibold">
             How it Works
@@ -69,7 +87,7 @@ export const Navbar = () => {
                 Dashboard
               </button>
             </SignInButton>
-            
+
             <SignInButton mode="modal">
               <button className="hidden md:block bg-slate-900/50 hover:bg-slate-800 px-5 py-2 rounded-full text-sm font-semibold transition-all text-white border border-slate-700 cursor-pointer">
                 Login
@@ -103,7 +121,7 @@ export const Navbar = () => {
             <Link href="/" onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-cyan-400 border-b border-slate-900 pb-4 cursor-pointer">Home</Link>
             <Link href="/hapticfeedback" onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-cyan-400 border-b border-slate-900 pb-4 cursor-pointer">Haptic Alphabet</Link>
             <Link href="/training-awareness" onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-cyan-400 border-b border-slate-900 pb-4 cursor-pointer">How it Works</Link>
-            
+
             <SignedOut>
               <SignInButton mode="modal">
                 <button className="text-left text-slate-300 hover:text-cyan-400 border-b border-slate-900 pb-4 cursor-pointer w-full">
@@ -111,7 +129,7 @@ export const Navbar = () => {
                 </button>
               </SignInButton>
             </SignedOut>
-            
+
             <SignedIn>
               <Link href="/viberoom" onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-cyan-400 border-b border-slate-900 pb-4 cursor-pointer">
                 Dashboard
