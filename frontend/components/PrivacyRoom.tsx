@@ -15,8 +15,10 @@ export const PrivacyRoom = () => {
 
   return (
     <section ref={containerRef} id="privacy" className="py-32 px-6 bg-slate-950 relative overflow-hidden">
-      {/* Background Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-20" />
+      
+      {/* REMOVED: Background Grid */}
+      {/* ADDED: Subtle Ambient Radial Glow (Cleaner alternative) */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(6,182,212,0.03)_0%,transparent_70%)] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-center relative z-10">
         <motion.div style={{ opacity: lockOpacity }} className="space-y-8">
