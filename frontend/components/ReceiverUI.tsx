@@ -32,7 +32,6 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
 
-  /* 🔹 Step 1: WebSocket Live Listener */
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
     wsRef.current = ws;
@@ -40,6 +39,13 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
     ws.onopen = () => {
       setSenderOnline(true);
       setStatusText("Neural Link Active ✔");
+      ws.send(JSON.stringify({
+        user: {
+          id: user?.id,
+          name: user?.fullName || user?.username || "Receiver",
+          photo: user?.imageUrl || null
+        }
+      }));
     };
 
     ws.onmessage = (e) => {
@@ -49,6 +55,7 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
         setDebugText(d.text);
         setDebugMorse(d.code);
         animateBars(d.code);
+        vibrateMorse(d.code);
       }
 
       if (d.type === "disconnect") {
@@ -59,13 +66,12 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
 
     ws.onclose = () => {
       setSenderOnline(false);
-      setStatusText("Reconnecting…");
+      setStatusText("Sender Offline");
     };
 
     return () => ws.close();
   }, [roomCode]);
 
-  /* 🔹 Step 2: Add Receiver to Firestore once Clerk user loads */
   useEffect(() => {
     if (!isLoaded || !user) return;
 
@@ -83,12 +89,14 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       if (!snap.exists()) return;
       const data = snap.data();
 
+      setSenderOnline(!!data.sender);
+      setStatusText(data.sender ? "Neural Link Active ✔" : "Sender Offline");
+
       const list: Member[] = [];
-      if (data.sender) list.push(data.sender); // include sender always
+      if (data.sender) list.push({ ...data.sender, isSender: true });
       if (Array.isArray(data.receivers)) list.push(...data.receivers);
 
-      // REMOVE DUPLICATE SELF FROM LIST (Receiver should not see their own profile twice)
-      const filtered = list.filter(m => m.id !== user.id);
+      const filtered = list.filter(m => m.id !== user?.id);
 
       setMembers(filtered);
     });
@@ -101,7 +109,18 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
       unsub();
     };
   }, [isLoaded, user]);
+  function vibrateMorse(code: string) {
+    const UNIT = 200;
+    const pattern: number[] = [];
 
+    for (const c of code) {
+      if (c === ".") pattern.push(UNIT);
+      else if (c === "-") pattern.push(UNIT * 3);
+      else pattern.push(UNIT);
+    }
+
+    navigator.vibrate?.(pattern);
+  }
   function animateBars(code: string) {
     const UNIT = 200;
     const pulse = code.split("").map((c) => c === "." ? 30 : c === "-" ? 60 : 4);
