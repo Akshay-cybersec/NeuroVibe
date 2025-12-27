@@ -11,6 +11,10 @@ import {
   serverTimestamp,
   onSnapshot,
 } from "firebase/firestore";
+import Sentiment from "sentiment";
+
+const sentimentAnalyzer = new Sentiment();
+
 
 interface Receiver {
   id: string;
@@ -126,11 +130,25 @@ export function SenderUI({
       if (!text || !result.isFinal) return;
 
       const morse = textToMorse(text);
-      wsRef.current?.send(JSON.stringify({
-        type: "morse",
-        text,
-        code: morse
-      }));
+      const analysis = sentimentAnalyzer.analyze(text);
+      console.log("Sentiment Score:", analysis.score);
+
+      let emotion = "neutral";
+
+      if (analysis.score > 1) emotion = "happy";
+      else if (analysis.score < -2) emotion = "angry";
+      else if (analysis.score < 0) emotion = "sad";
+
+      console.log("Detected Emotion:", emotion);
+
+      wsRef.current?.send(
+        JSON.stringify({
+          type: "morse",
+          text,
+          code: morse,
+          emotion,
+        })
+      );
     };
 
     rec.start();
