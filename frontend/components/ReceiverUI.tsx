@@ -31,6 +31,10 @@ export function ReceiverUI({ roomCode, onExit }: { roomCode: string; onExit: () 
   const [debugText, setDebugText] = useState("");
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
+  
+  useEffect(() => {
+    navigator.vibrate?.(1);
+  }, []);
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/receiver`);
