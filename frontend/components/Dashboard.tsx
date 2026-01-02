@@ -8,8 +8,12 @@ import { doc, setDoc, serverTimestamp, getDoc, onSnapshot } from "firebase/fires
 import { db } from "@/lib/firebaseConfig";
 import { useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { InviteListener } from "./InviteListener";
+import { IncomingInviteModal } from "@/components/IncomingInviteModal";
+
 
 export default function VibeDashboard() {
+  const [incomingInvite, setIncomingInvite] = useState<any | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [role, setRole] = useState<"sender" | "receiver" | null>(null);
   const [roomCode, setRoomCode] = useState("");
@@ -20,6 +24,7 @@ export default function VibeDashboard() {
     receivers: number;
     sender: boolean;
   }>(null);
+  const [receiverStandby, setReceiverStandby] = useState(false);
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
@@ -43,6 +48,35 @@ export default function VibeDashboard() {
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [mouseX, mouseY]);
+  useEffect(() => {
+    let lastX = 0, lastY = 0, lastZ = 0;
+    let lastTime = 0;
+
+    function handleMotion(e: DeviceMotionEvent) {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc) return;
+
+      const now = Date.now();
+      if (now - lastTime < 300) return;
+
+      const delta =
+        Math.abs(acc.x! - lastX) +
+        Math.abs(acc.y! - lastY) +
+        Math.abs(acc.z! - lastZ);
+
+      if (delta > 20) {
+        setReceiverStandby(true);
+        lastTime = now;
+      }
+
+      lastX = acc.x!;
+      lastY = acc.y!;
+      lastZ = acc.z!;
+    }
+
+    window.addEventListener("devicemotion", handleMotion);
+    return () => window.removeEventListener("devicemotion", handleMotion);
+  }, []);
 
   const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
   const shareLink = `${BASE_URL}/viberoom?room=${generatedCode}`;
@@ -174,6 +208,23 @@ export default function VibeDashboard() {
   return (
     <div id="dashboard-section" className="min-h-screen bg-slate-950 flex items-start justify-center pt-16 md:pt-20 p-6 relative overflow-hidden">
       <Toaster position="top-center" reverseOrder={false} />
+      <InviteListener onInvite={(invite) => {
+        setIncomingInvite(invite);
+      }} />
+      {receiverStandby && incomingInvite && (
+        <IncomingInviteModal
+          invite={incomingInvite}
+          onAccept={(roomCode) => {
+            setRoomCode(roomCode);
+            setSessionActive(true);
+            setRole("receiver");
+            setIncomingInvite(null);
+          }}
+          onReject={() => {
+            setIncomingInvite(null);
+          }}
+        />
+      )}
 
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_30%,transparent_100%)] opacity-30" />
