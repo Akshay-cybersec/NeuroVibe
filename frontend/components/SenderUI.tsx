@@ -81,6 +81,7 @@ export function SenderUI({
               roomCode,
               status: "pending",
               timestamp: Timestamp.now(),
+              expiresAt: Date.now() + 30_000, 
             },
           ],
         },

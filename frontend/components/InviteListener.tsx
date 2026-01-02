@@ -16,7 +16,8 @@ export function InviteListener({ onInvite }: { onInvite: (invite: any) => void }
       doc(db, "notifications", email),
       (snap) => {
         if (!snap.exists()) return;
-        const pending = snap.data().requests?.find((r: any) => r.status === "pending");
+        const pending = snap.data().requests?.find((r: any) => r.status === "pending" &&
+          r.expiresAt > Date.now());
         if (pending) onInvite(pending);
       }
     );

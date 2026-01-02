@@ -19,39 +19,6 @@ export default function Home() {
   // 🔹 Incoming invite
   const [incomingInvite, setIncomingInvite] = useState<any | null>(null);
 
-  useEffect(() => {
-    let lastX = 0, lastY = 0, lastZ = 0;
-    let lastShake = 0;
-
-    function handleMotion(e: DeviceMotionEvent) {
-      if (sessionActive) return; // ❌ don't trigger during session
-
-      const acc = e.accelerationIncludingGravity;
-      if (!acc) return;
-
-      const now = Date.now();
-      if (now - lastShake < 2000) return; // debounce
-
-      const delta =
-        Math.abs(acc.x! - lastX) +
-        Math.abs(acc.y! - lastY) +
-        Math.abs(acc.z! - lastZ);
-
-      if (delta > 18) {
-        console.log("📳 SHAKE → Receiver standby ON");
-        setReceiverStandby(true);
-        lastShake = now;
-      }
-
-      lastX = acc.x!;
-      lastY = acc.y!;
-      lastZ = acc.z!;
-    }
-
-    window.addEventListener("devicemotion", handleMotion);
-    return () => window.removeEventListener("devicemotion", handleMotion);
-  }, [sessionActive]);
-
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50 selection:bg-cyan-500/30">
       <Navbar />
