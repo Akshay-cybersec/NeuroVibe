@@ -33,8 +33,6 @@ export function ReceiverUI({
   const [hapticsEnabled, setHapticsEnabled] = useState(initialHaptics);
   const [incomingInvite, setIncomingInvite] = useState<any | null>(null);
   const [ringing, setRinging] = useState(false);
-  const [sessionActive, setSessionActive] = useState(false);
-  const [role, setRole] = useState<"sender" | "receiver" | null>(null);
 
 
   const roomRef = doc(db, "rooms", roomCode);
@@ -50,28 +48,7 @@ export function ReceiverUI({
   const [debugMorse, setDebugMorse] = useState("");
   const [barHeights, setBarHeights] = useState<number[]>(Array(10).fill(4));
 
-  useEffect(() => {
-    if (!user?.primaryEmailAddress?.emailAddress) return;
 
-    const email = user.primaryEmailAddress.emailAddress;
-
-    const unsub = onSnapshot(
-      doc(db, "notifications", email),
-      (snap) => {
-        if (!snap.exists()) return;
-
-        const requests = snap.data().requests || [];
-        const pending = requests.find((r: any) => r.status === "pending");
-
-        if (pending) {
-          setIncomingInvite(pending);
-          setRinging(true);
-        }
-      }
-    );
-
-    return () => unsub();
-  }, [user]);
   useEffect(() => {
     if (!ringing) return;
 
@@ -285,38 +262,7 @@ export function ReceiverUI({
       animate={{ opacity: 1, scale: 1 }}
       className="relative w-full max-w-5xl flex flex-col items-center p-6 md:p-12 bg-slate-900/10 backdrop-blur-3xl rounded-[2.5rem] md:rounded-[3rem] border border-white/5 mx-auto shadow-2xl overflow-hidden min-h-[85vh]"
     >
-      {incomingInvite && (
-        <div
-          className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center"
-          onTouchStart={(e) => {
-            const startX = e.touches[0].clientX;
-            (e.currentTarget as any).startX = startX;
-          }}
-          onTouchEnd={(e) => {
-            const startX = (e.currentTarget as any).startX;
-            const endX = e.changedTouches[0].clientX;
-            const diff = endX - startX;
-
-            if (diff > 80) acceptInvite();   // 👉 right swipe
-            if (diff < -80) rejectInvite();  // 👈 left swipe
-          }}
-        >
-          <div className="bg-slate-900 p-8 rounded-3xl text-center w-full max-w-sm">
-            <p className="text-white text-lg font-bold mb-2">
-              Incoming Invite
-            </p>
-
-            <p className="text-cyan-400 mb-6">
-              Room: {incomingInvite.roomCode}
-            </p>
-
-            <div className="flex justify-between text-sm text-slate-400">
-              <span>👈 Swipe left to reject</span>
-              <span>Swipe right to accept 👉</span>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
       {/* Header */}
       {/* Header Container */}
