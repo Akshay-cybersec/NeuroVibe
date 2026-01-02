@@ -10,7 +10,11 @@ import {
   setDoc,
   serverTimestamp,
   onSnapshot,
+  updateDoc,
+  arrayUnion,
+  Timestamp,
 } from "firebase/firestore";
+
 import Sentiment from "sentiment";
 
 const sentimentAnalyzer = new Sentiment();
@@ -37,6 +41,9 @@ export function SenderUI({
   onExit: () => void;
   shareURL: string;
 }) {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -46,6 +53,54 @@ export function SenderUI({
   const recognitionRef = useRef<any>(null);
   const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
   const { user } = useUser();
+  //invite handler
+  async function handleInvite() {
+    try {
+      setLoading(true);
+      console.log("HANDLE INVITE CALLED", email);
+
+      if (!email) return;
+
+      await setDoc(
+        doc(db, "rooms", roomCode),
+        {
+          invitations: arrayUnion({
+            email,
+            status: "pending",
+            invitedAt: Timestamp.now(),
+          }),
+        },
+        { merge: true }
+      );
+
+      await setDoc(
+        doc(db, "notifications", email),
+        {
+          requests: [
+            {
+              roomCode,
+              status: "pending",
+              timestamp: Timestamp.now(),
+              expiresAt: Date.now() + 30_000, 
+            },
+          ],
+        },
+        { merge: true }
+      );
+
+      setEmail("");
+      setInviteOpen(false);
+      setLoading(false);
+
+      console.log("Invite sent successfully");
+
+    } catch (err) {
+      console.error("INVITE ERROR:", err);
+      setLoading(false); // always stop loader
+    }
+  }
+
+
 
   //spacebar added for tap to speak
   useEffect(() => {
@@ -84,7 +139,7 @@ export function SenderUI({
         email: user.primaryEmailAddress?.emailAddress,
       },
       active: true,
-      created_at: serverTimestamp(),
+      created_at: Timestamp.now(),
     }, { merge: true });
 
     const ws = new WebSocket(`${WS_BASE}/ws/${roomCode}/sender/${user.id}`);
@@ -186,6 +241,16 @@ export function SenderUI({
       recognitionRef.current = null;
     }
   };
+  const [invites, setInvites] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "rooms", roomCode), (snap) => {
+      if (!snap.exists()) return;
+      setInvites(snap.data().invitations || []);
+    });
+
+    return () => unsub();
+  }, [roomCode]);
 
   return (
     <motion.div
@@ -193,6 +258,39 @@ export function SenderUI({
       animate={{ opacity: 1, scale: 1 }}
       className="relative w-full max-w-5xl flex flex-col items-center p-6 md:p-12 bg-slate-900/10 backdrop-blur-3xl rounded-[2.5rem] md:rounded-[3rem] border border-white/5 mx-auto shadow-2xl overflow-hidden min-h-[85vh]"
     >
+      {inviteOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center">
+          <div className="bg-slate-900 p-6 rounded-2xl w-full max-w-sm">
+
+            <h3 className="text-white font-bold mb-4">
+              Invite by Email
+            </h3>
+
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@email.com"
+              className="w-full p-3 rounded-xl bg-black border border-white/10 text-white"
+            />
+
+            <button
+              onClick={handleInvite}
+              disabled={loading}
+              className="mt-4 w-full bg-cyan-600 py-3 rounded-xl text-white"
+            >
+              {loading ? "Sending..." : "Send Invite"}
+            </button>
+
+            <button
+              onClick={() => setInviteOpen(false)}
+              className="mt-2 w-full text-sm text-slate-400"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Controls */}
       <div className="w-full flex flex-col md:flex-row items-center justify-between gap-6 z-20 mb-10">
         <div className="flex items-center gap-3">
@@ -204,6 +302,13 @@ export function SenderUI({
             <Share2 size={16} className="text-cyan-400 group-hover:text-white" />
             <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400 group-hover:text-white">Share</span>
           </button>
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full"
+          >
+            + Add People
+          </button>
+
         </div>
 
         <div className="flex items-center gap-4 px-6 py-3 bg-white/5 border border-white/10 rounded-full shadow-2xl">
@@ -253,7 +358,7 @@ export function SenderUI({
         <div className="flex flex-col items-center gap-4 mb-4 min-h-[60px] w-full max-w-xs">
           <AnimatePresence>
             {active && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
@@ -264,14 +369,14 @@ export function SenderUI({
                   {[...Array(20)].map((_, i) => (
                     <motion.div
                       key={i}
-                      animate={{ 
+                      animate={{
                         height: [10, Math.random() * 35 + 10, 10],
                         opacity: [0.3, 1, 0.3]
                       }}
-                      transition={{ 
-                        repeat: Infinity, 
-                        duration: 0.5 + Math.random() * 0.5, 
-                        ease: "easeInOut" 
+                      transition={{
+                        repeat: Infinity,
+                        duration: 0.5 + Math.random() * 0.5,
+                        ease: "easeInOut"
                       }}
                       className="w-1 md:w-1.5 bg-cyan-400 rounded-full shadow-[0_0_10px_#06b6d4]"
                     />

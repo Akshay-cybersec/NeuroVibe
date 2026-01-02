@@ -7,10 +7,7 @@ export default function VibeRoomPage() {
   return (
     <main className="min-h-screen bg-slate-950">
       <Navbar />
-      <div className="pt-20"> {/* Adjusted padding to match your new dashboard height */}
-        {/* WRAPPER FIX: Suspense is required here because VibeDashboard 
-          uses useSearchParams(). This prevents the build error.
-        */}
+      <div className="pt-20">
         <Suspense 
           fallback={
             <div className="min-h-[60vh] flex items-center justify-center">

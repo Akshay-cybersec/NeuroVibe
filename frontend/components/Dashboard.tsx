@@ -8,8 +8,12 @@ import { doc, setDoc, serverTimestamp, getDoc, onSnapshot } from "firebase/fires
 import { db } from "@/lib/firebaseConfig";
 import { useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
+import { InviteListener } from "./InviteListener";
+import { IncomingInviteModal } from "@/components/IncomingInviteModal";
+
 
 export default function VibeDashboard() {
+  const [incomingInvite, setIncomingInvite] = useState<any | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [role, setRole] = useState<"sender" | "receiver" | null>(null);
   const [roomCode, setRoomCode] = useState("");
@@ -52,12 +56,12 @@ export default function VibeDashboard() {
   const autoRole = searchParams.get("role");
   const [showJoinPrompt, setShowJoinPrompt] = useState(false);
   const confirmJoin = () => {
-  setSessionActive(true);
-  setRole("receiver");
-  sessionStorage.setItem("haptics", "enabled");
+    setSessionActive(true);
+    setRole("receiver");
+    sessionStorage.setItem("haptics", "enabled");
 
-  setShowJoinPrompt(false);
-};
+    setShowJoinPrompt(false);
+  };
 
 
   const cancelJoin = () => {
@@ -97,7 +101,7 @@ export default function VibeDashboard() {
 
   const handleCreate = async () => {
     setIsLoading(true);
-    const createPromise = new Promise(async (resolve, reject) => { 
+    const createPromise = new Promise(async (resolve, reject) => {
       try {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         await setDoc(doc(db, "rooms", code), {
@@ -174,6 +178,22 @@ export default function VibeDashboard() {
   return (
     <div id="dashboard-section" className="min-h-screen bg-slate-950 flex items-start justify-center pt-16 md:pt-20 p-6 relative overflow-hidden">
       <Toaster position="top-center" reverseOrder={false} />
+      <InviteListener onInvite={(invite) => {
+        setIncomingInvite(invite);
+      }} />
+      {incomingInvite && !sessionActive && (
+        <IncomingInviteModal
+          invite={incomingInvite}
+          onAccept={(room) => {
+            setRoomCode(room);
+            setRole("receiver");
+            setSessionActive(true);
+            setIncomingInvite(null);
+          }}
+          onReject={() => setIncomingInvite(null)}
+        />
+      )}
+
 
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_30%,transparent_100%)] opacity-30" />
@@ -238,24 +258,24 @@ export default function VibeDashboard() {
               </div>
 
               <form onSubmit={handleJoin} className="space-y-4">
-                <input 
-                  type="text" 
-                  placeholder="ENTER CODE" 
-                  value={roomCode} 
+                <input
+                  type="text"
+                  placeholder="ENTER CODE"
+                  value={roomCode}
                   onChange={(e) => {
                     // 2. Remove all spaces and special characters, then take only first 6
                     const val = e.target.value.replace(/\s+/g, "").toUpperCase();
                     if (val.length <= 6) {
                       setRoomCode(val);
                     }
-                  }} 
-                  className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-5 px-6 text-center font-mono tracking-[0.5em] text-white focus:border-cyan-500/50 transition-all outline-none text-lg" 
+                  }}
+                  className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-5 px-6 text-center font-mono tracking-[0.5em] text-white focus:border-cyan-500/50 transition-all outline-none text-lg"
                 />
-                <motion.button 
-                  type="submit" 
-                  whileHover={roomCode.length === 6 ? { scale: 1.02 } : {}} 
-                  whileTap={roomCode.length === 6 ? { scale: 0.98 } : {}} 
-                  disabled={roomCode.length !== 6 || isLoading} 
+                <motion.button
+                  type="submit"
+                  whileHover={roomCode.length === 6 ? { scale: 1.02 } : {}}
+                  whileTap={roomCode.length === 6 ? { scale: 0.98 } : {}}
+                  disabled={roomCode.length !== 6 || isLoading}
                   className="w-full py-5 border border-white/10 rounded-2xl text-cyan-400 font-black text-sm tracking-widest flex items-center justify-center gap-3 hover:bg-white/5 disabled:opacity-20 transition-all uppercase"
                 >
                   Join Link <ArrowRight size={20} />
@@ -273,7 +293,15 @@ export default function VibeDashboard() {
             {role === "sender" ? (
               <SenderUI roomCode={roomCode} onExit={terminateSession} shareURL={shareLink} />
             ) : (
-              <ReceiverUI roomCode={roomCode} onExit={terminateSession} />
+              <ReceiverUI
+                roomCode={roomCode}
+                onExit={terminateSession}
+                onAcceptInvite={(code) => {
+                  setRoomCode(code);
+                  setSessionActive(true);
+                  setRole("receiver");
+                }}
+              />
             )}
           </div>
         )}
